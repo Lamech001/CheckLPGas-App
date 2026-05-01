@@ -1,0 +1,284 @@
+import { requestLocationPermission } from '@/services/locationService';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+export default function RoleSelectScreen() {
+  const router = useRouter();
+  const { role } = useLocalSearchParams<{ role: string }>();
+  const [selectedRole, setSelectedRole] = useState<'consumer' | 'supplier'>(
+    (role as 'consumer' | 'supplier') || 'consumer'
+  );
+
+  const handleContinue = async () => {
+    // Request location permission for safety purposes
+    const hasPermission = await requestLocationPermission();
+    
+    if (!hasPermission) {
+      Alert.alert(
+        'Location Access Required',
+        'We need access to your location for safety purposes and to show you nearby gas services. Please allow location access to continue.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue Anyway', onPress: () => navigateToSignup() }
+        ]
+      );
+      return;
+    }
+
+    navigateToSignup();
+  };
+
+  const navigateToSignup = () => {
+    if (selectedRole === 'consumer') {
+      router.push('/consumer/signup');
+    } else {
+      // Navigate to supplier signup (to be created)
+      console.log('Supplier flow - not implemented yet');
+    }
+  };
+
+  const handleSwitchRole = () => {
+    setSelectedRole(selectedRole === 'consumer' ? 'supplier' : 'consumer');
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        {/* Title */}
+        <Text style={styles.title}>Select Your Role</Text>
+        <Text style={styles.subtitle}>How would you like to proceed?</Text>
+
+        {/* Role Options Container */}
+        <View style={styles.optionsContainer}>
+          {/* Consumer Option */}
+          <TouchableOpacity
+            style={[
+              styles.roleOption,
+              selectedRole === 'consumer' && styles.roleOptionSelectedConsumer
+            ]}
+            onPress={() => setSelectedRole('consumer')}
+          >
+            <View style={styles.roleContent}>
+              <View style={styles.iconContainer}>
+                <View style={styles.consumerIconBox}>
+                  <FontAwesome5 name="home" size={28} color="#4CAF50" />
+                  <View style={styles.smallGasIcon}>
+                    <FontAwesome5 name="burn" size={14} color="#4CAF50" />
+                  </View>
+                </View>
+              </View>
+              <View style={styles.roleTextContainer}>
+                <Text style={[
+                  styles.roleTitle,
+                  selectedRole === 'consumer' && styles.roleTitleSelectedConsumer
+                ]}>
+                  I'm a Consumer
+                </Text>
+                <Text style={styles.roleDescription}>Find Gas Prices Nearby</Text>
+              </View>
+            </View>
+            {selectedRole === 'consumer' && (
+              <View style={styles.checkmarkContainer}>
+                <FontAwesome5 name="check-circle" size={26} color="#4CAF50" />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Supplier Option */}
+          <TouchableOpacity
+            style={[
+              styles.roleOption,
+              selectedRole === 'supplier' && styles.roleOptionSelectedSupplier
+            ]}
+            onPress={() => setSelectedRole('supplier')}
+          >
+            <View style={styles.roleContent}>
+              <View style={styles.iconContainer}>
+                <View style={styles.supplierIconBox}>
+                  <FontAwesome5 name="burn" size={26} color="#FF9800" />
+                  <FontAwesome5 name="check-square" size={16} color="#FF9800" style={styles.supplierCheckIcon} />
+                </View>
+              </View>
+              <View style={styles.roleTextContainer}>
+                <Text style={[
+                  styles.roleTitle,
+                  selectedRole === 'supplier' && styles.roleTitleSelectedSupplier
+                ]}>
+                  I'm a Supplier
+                </Text>
+                <Text style={styles.roleDescription}>Manage My Gas Business</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Continue Button */}
+        <TouchableOpacity
+          style={[
+            styles.continueButton,
+            selectedRole === 'supplier' && styles.continueButtonSupplier
+          ]}
+          onPress={handleContinue}
+        >
+          <Text style={styles.continueButtonText}>
+            Continue as {selectedRole === 'consumer' ? 'Consumer' : 'Supplier'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Switch Role */}
+        <View style={styles.switchContainer}>
+          <Text style={styles.switchText}>Not the right one? </Text>
+          <TouchableOpacity onPress={handleSwitchRole}>
+            <Text style={styles.switchLink}>Switch Role</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 100,
+    paddingBottom: 20,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#424242',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#757575',
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  optionsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  roleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 16,
+    backgroundColor: '#fff',
+  },
+  roleOptionSelectedConsumer: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#E8F5E9',
+  },
+  roleOptionSelectedSupplier: {
+    borderColor: '#FF9800',
+    backgroundColor: '#FFF3E0',
+  },
+  roleOptionLast: {
+    marginBottom: 0,
+  },
+  roleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconContainer: {
+    marginRight: 12,
+  },
+  consumerIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  smallGasIcon: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+  },
+  supplierIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: '#FFF3E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  supplierCheckIcon: {
+    marginLeft: 4,
+  },
+  roleTextContainer: {
+    flex: 1,
+  },
+  roleTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#616161',
+    marginBottom: 6,
+  },
+  roleTitleSelectedConsumer: {
+    color: '#4CAF50',
+  },
+  roleTitleSelectedSupplier: {
+    color: '#FF9800',
+  },
+  roleDescription: {
+    fontSize: 15,
+    color: '#9e9e9e',
+  },
+  checkmarkContainer: {
+    marginLeft: 8,
+  },
+  continueButton: {
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  continueButtonSupplier: {
+    backgroundColor: '#FF9800',
+  },
+  continueButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  switchText: {
+    color: '#757575',
+    fontSize: 16,
+  },
+  switchLink: {
+    color: '#2196F3',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+});
