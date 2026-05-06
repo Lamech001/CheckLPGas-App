@@ -1,98 +1,408 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { AppStatusBar } from '@/components/AppStatusBar';
+import { NotificationsPanel } from '@/components/consumer/NotificationsPanel';
+import { SideMenu } from '@/components/consumer/SideMenu';
+import { SupplierList } from '@/components/consumer/SupplierList';
+import { SupplierMap } from '@/components/consumer/SupplierMap';
+import { auth } from '@/config/firebase';
+import { AppColors, AppConstants, AppShadows, AppSizes } from '@/constants/appTheme';
+import { useSuppliers } from '@/hooks/useSuppliers';
+import { getUserRole } from '@/services/authService';
+import { cacheUserLocation, getCachedUserLocation } from '@/services/cacheService';
+import { getCurrentLocation } from '@/services/locationService';
+import { notificationListeners, requestNotificationPermissions, sendLocalNotification, setupNotifications } from '@/services/notificationService';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const DEFAULT_RADIUS_KM = AppConstants.defaultRadiusKm;
 
-export default function HomeScreen() {
+export default function ConsumerHomeScreen() {
+  const router = useRouter();
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // Use new cached suppliers hook with built-in real-time updates
+  const {
+    suppliers,
+    isLoading: suppliersLoading,
+    isFetching: suppliersFetching,
+    error: suppliersError,
+    refresh: refreshSuppliers,
+    lastUpdated,
+    isStale,
+  } = useSuppliers({
+    latitude: userLocation?.latitude ?? null,
+    longitude: userLocation?.longitude ?? null,
+    radiusKm: DEFAULT_RADIUS_KM,
+    enabled: !!userLocation,
+  });
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user?.displayName) {
+      setUserName(user.displayName.split(' ')[0]); // First name only
+    }
+  }, []);
+
+  // Setup push notifications in background - don't block UI
+  useEffect(() => {
+    // Defer notifications setup to prioritize UI rendering
+    const timeoutId = setTimeout(() => {
+      const initNotifications = async () => {
+        const hasPermission = await requestNotificationPermissions();
+        if (hasPermission) {
+          await setupNotifications();
+          
+          // Send welcome notification
+          await sendLocalNotification(
+            'Welcome to GasAround!',
+            'You will receive alerts when new suppliers are available near you.',
+            { type: 'welcome' }
+          );
+        }
+      };
+      
+      initNotifications();
+    }, 1000); // Delay 1 second after UI renders
+    
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Listen for notifications
+  useEffect(() => {
+    const unsubscribe = notificationListeners(
+      (_notification) => {
+        // New notification received
+        setUnreadNotifications((prev) => prev + 1);
+      },
+      (response) => {
+        // User tapped notification
+        const data = response.notification.request.content.data as Record<string, any>;
+        if (data?.type === 'new_supplier') {
+          // Could navigate to specific supplier
+          Alert.alert('New Supplier!', `Check out ${data.supplierName}`);
+        }
+      }
+    );
+    
+    return () => unsubscribe();
+  }, []);
+
+  // Quick role check in background - don't block UI
+  useEffect(() => {
+    // Defer role check to not block initial render
+    const timeoutId = setTimeout(() => {
+      const checkRoleAndRedirect = async () => {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        try {
+          const roleResult = await getUserRole(user.uid);
+          if (roleResult.role === 'supplier') {
+            router.replace('/supplier/dashboard');
+          }
+        } catch {
+          // Ignore errors - stay on consumer page
+        }
+      };
+      
+      checkRoleAndRedirect();
+    }, 500); // Small delay to let UI render first
+    
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Load location - cached first for instant display, then fresh
+  useEffect(() => {
+    const loadLocation = async () => {
+      // INSTANT: Try cached location first
+      const cachedLocation = await getCachedUserLocation<{ latitude: number; longitude: number }>();
+      if (cachedLocation) {
+        setUserLocation(cachedLocation);
+        setIsLocating(false); // Show UI immediately with cached location
+      } else {
+        setIsLocating(true);
+      }
+
+      // BACKGROUND: Get fresh location without blocking UI
+      const location = await getCurrentLocation();
+      if (location) {
+        setUserLocation(location);
+        await cacheUserLocation(location);
+      }
+      
+      setIsLocating(false);
+    };
+
+    loadLocation();
+  }, []);
+
+  // Real-time updates are now handled internally by useSuppliers hook
+  // No need for manual subscription management
+
+  // Auto-refresh every 30 minutes to ensure fresh data without excessive API calls
+  useEffect(() => {
+    if (!userLocation) return;
+
+    const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+    const intervalId = setInterval(() => {
+      console.log('Auto-refreshing suppliers (30-minute interval)');
+      refreshSuppliers();
+    }, REFRESH_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [userLocation, refreshSuppliers]);
+
+  const handleRefresh = useCallback(() => {
+    refreshSuppliers();
+  }, [refreshSuppliers]);
+
+  // Show UI immediately with cached data, refresh in background
+  // Only show full loading screen on initial app load with no cache
+  const showLoading = isLocating && !suppliers.length && !userLocation;
+  const error = suppliersError;
+
+  if (showLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={AppColors.primary} />
+        <Text style={styles.loadingText}>Finding gas suppliers near you...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <FontAwesome5 name="exclamation-circle" size={48} color={AppColors.errorLight} />
+        <Text style={styles.errorText}>{error.message}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+          <Text style={styles.retryButtonText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!userLocation) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Location not available</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      {/* Status Bar */}
+      <AppStatusBar backgroundColor={AppColors.statusBarConsumer} barStyle="light-content" />
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
+            <FontAwesome5 name="bars" size={24} color={AppColors.primary} />
+          </TouchableOpacity>
+          <Text style={styles.logo}>{AppConstants.appName}</Text>
+          <TouchableOpacity style={styles.notificationButton} onPress={() => setNotificationsVisible(true)}>
+            <FontAwesome5 name="bell" size={20} color={AppColors.primary} />
+            {unreadNotifications > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadNotifications > 99 ? '99+' : unreadNotifications}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.greeting}>Hello, {userName || 'Guest'}!</Text>
+        <Text style={styles.subtitle}>{AppConstants.appTagline}</Text>
+      </View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Map Section */}
+        <View style={styles.mapContainer}>
+          <SupplierMap
+            userLocation={userLocation}
+            suppliers={suppliers || []}
+            selectedSize="all"
+            radiusKm={DEFAULT_RADIUS_KM}
+          />
+        </View>
+
+        {/* Supplier List Section */}
+        <View style={styles.listSection}>
+          <View style={styles.listHeader}>
+            <View>
+              <Text style={styles.listTitle}>Nearby Suppliers</Text>
+              {isStale && (
+                <Text style={styles.staleText}>Updating...</Text>
+              )}
+            </View>
+            <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+              <FontAwesome5 name={suppliersFetching ? "spinner" : "sync-alt"} size={14} color={AppColors.primary} spin={suppliersFetching} />
+              <Text style={styles.refreshText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+          <SupplierList suppliers={suppliers || []} />
+        </View>
+      </ScrollView>
+
+      {/* Side Menu */}
+      <SideMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        userName={userName}
+      />
+
+      {/* Notifications Panel */}
+      <NotificationsPanel
+        visible={notificationsVisible}
+        onClose={() => setNotificationsVisible(false)}
+        onUnreadCountChange={setUnreadNotifications}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: AppColors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: AppColors.white,
+  },
+  loadingText: {
+    marginTop: AppSizes.spacingLarge,
+    fontSize: AppSizes.fontXLarge,
+    color: AppColors.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: AppColors.white,
+    padding: AppSizes.spacingXXLarge,
+  },
+  errorText: {
+    marginTop: AppSizes.spacingLarge,
+    fontSize: AppSizes.fontXLarge,
+    color: AppColors.textSecondary,
+    textAlign: 'center',
+    marginBottom: AppSizes.spacingXXLarge,
+  },
+  retryButton: {
+    backgroundColor: AppColors.primary,
+    paddingHorizontal: AppSizes.spacingXXLarge,
+    paddingVertical: AppSizes.spacingMedium,
+    borderRadius: AppSizes.radiusMedium,
+  },
+  retryButtonText: {
+    color: AppColors.white,
+    fontSize: AppSizes.fontXLarge,
+    fontWeight: '600',
+  },
+  header: {
+    backgroundColor: AppColors.white,
+    paddingTop: 60,
+    paddingHorizontal: AppSizes.spacingLarge,
+    paddingBottom: AppSizes.spacingLarge,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.border,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: AppSizes.spacingMedium,
+  },
+  menuButton: {
+    padding: AppSizes.spacingSmall,
+  },
+  logo: {
+    fontSize: AppSizes.fontTitle,
+    fontWeight: '700',
+    color: AppColors.primary,
+  },
+  notificationButton: {
+    padding: AppSizes.spacingSmall,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: AppColors.errorLight,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: AppColors.white,
+    fontSize: AppSizes.fontXSmall,
+    fontWeight: 'bold',
+  },
+  greeting: {
+    fontSize: AppSizes.fontHeader,
+    fontWeight: '700',
+    color: AppColors.textPrimary,
+    marginBottom: AppSizes.spacingXS,
+  },
+  subtitle: {
+    fontSize: AppSizes.fontMedium,
+    color: AppColors.textSecondary,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  mapContainer: {
+    height: 220,
+    margin: AppSizes.spacingLarge,
+    borderRadius: AppSizes.radiusXLarge,
+    overflow: 'hidden',
+    ...AppShadows.medium,
+  },
+  listSection: {
+    flex: 1,
+    backgroundColor: AppColors.background,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: AppSizes.spacingLarge,
+    paddingVertical: AppSizes.spacingMedium,
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: AppColors.textPrimary,
+  },
+  refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: AppSizes.spacingXS,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  refreshText: {
+    fontSize: AppSizes.fontMedium,
+    color: AppColors.primary,
+    fontWeight: '500',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  staleText: {
+    fontSize: AppSizes.fontXSmall,
+    color: AppColors.textTertiary,
+    marginTop: AppSizes.spacingXS,
   },
 });

@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
   },
   setManuallyLink: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#1976D2',
     textDecorationLine: 'underline',
   },

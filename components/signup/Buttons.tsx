@@ -1,24 +1,62 @@
 import { FontAwesome5 } from '@expo/vector-icons';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface SignUpButtonProps {
   onPress: () => void;
   title?: string;
+  isLoading?: boolean;
+  disabled?: boolean;
 }
 
-export const SignUpButton: React.FC<SignUpButtonProps> = ({ onPress, title = 'Sign Up' }) => {
+export const SignUpButton: React.FC<SignUpButtonProps> = ({ 
+  onPress, 
+  title = 'Sign Up',
+  isLoading = false,
+  disabled = false,
+}) => {
   return (
-    <TouchableOpacity style={styles.signUpButton} onPress={onPress}>
-      <Text style={styles.signUpButtonText}>{title}</Text>
+    <TouchableOpacity 
+      style={[
+        styles.signUpButton, 
+        (disabled || isLoading) && styles.signUpButtonDisabled
+      ]} 
+      onPress={onPress}
+      disabled={disabled || isLoading}
+    >
+      {isLoading ? (
+        <ActivityIndicator color="#fff" size="small" />
+      ) : (
+        <Text style={styles.signUpButtonText}>{title}</Text>
+      )}
     </TouchableOpacity>
   );
 };
 
-export const GoogleSignInButton: React.FC<SignUpButtonProps> = ({ onPress, title = 'Continue with Google' }) => {
+interface GoogleSignInButtonProps {
+  onPress: () => void;
+  title?: string;
+  isLoading?: boolean;
+}
+
+export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ 
+  onPress, 
+  title = 'Continue with Google',
+  isLoading = false,
+}) => {
   return (
-    <TouchableOpacity style={styles.googleButton} onPress={onPress}>
-      <FontAwesome5 name="google" size={20} color="#DB4437" />
-      <Text style={styles.googleButtonText}>{title}</Text>
+    <TouchableOpacity 
+      style={[styles.googleButton, isLoading && styles.googleButtonDisabled]} 
+      onPress={onPress}
+      disabled={isLoading}
+    >
+      {isLoading ? (
+        <ActivityIndicator color="#DB4437" size="small" />
+      ) : (
+        <>
+          <FontAwesome5 name="google" size={20} color="#DB4437" />
+          <Text style={styles.googleButtonText}>{title}</Text>
+        </>
+      )}
     </TouchableOpacity>
   );
 };
@@ -57,6 +95,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
+  signUpButtonDisabled: {
+    backgroundColor: '#a5d6a7',
+  },
   signUpButtonText: {
     color: '#fff',
     fontSize: 18,
@@ -88,6 +129,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 24,
   },
+  googleButtonDisabled: {
+    opacity: 0.6,
+  },
   googleButtonText: {
     fontSize: 16,
     color: '#333',
@@ -99,11 +143,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loginText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 16,
+    color: 'black',
   },
   loginLink: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#2E7D32',
     fontWeight: '600',
     textDecorationLine: 'underline',

@@ -2,17 +2,17 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  FlatList,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 
 interface LocationPickerProps {
@@ -27,6 +27,20 @@ interface Suggestion {
   address: string;
 }
 
+// Popular locations in Kenya - defined outside component to avoid recreating on every render
+const POPULAR_LOCATIONS: Suggestion[] = [
+  { id: '1', name: 'Nairobi', address: 'Nairobi, Kenya' },
+  { id: '2', name: 'Mombasa', address: 'Mombasa, Kenya' },
+  { id: '3', name: 'Kisumu', address: 'Kisumu, Kenya' },
+  { id: '4', name: 'Nakuru', address: 'Nakuru, Kenya' },
+  { id: '5', name: 'Eldoret', address: 'Eldoret, Kenya' },
+  { id: '6', name: 'Kiambu', address: 'Kiambu, Kenya' },
+  { id: '7', name: 'Machakos', address: 'Machakos, Kenya' },
+  { id: '8', name: 'Kajiado', address: 'Kajiado, Kenya' },
+  { id: '9', name: 'Murang\'a', address: 'Murang\'a, Kenya' },
+  { id: '10', name: 'Nyeri', address: 'Nyeri, Kenya' },
+];
+
 export const LocationPicker: React.FC<LocationPickerProps> = ({
   visible,
   onClose,
@@ -35,25 +49,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState('');
-
-  // Popular locations in Kenya
-  const popularLocations: Suggestion[] = [
-    { id: '1', name: 'Nairobi', address: 'Nairobi, Kenya' },
-    { id: '2', name: 'Mombasa', address: 'Mombasa, Kenya' },
-    { id: '3', name: 'Kisumu', address: 'Kisumu, Kenya' },
-    { id: '4', name: 'Nakuru', address: 'Nakuru, Kenya' },
-    { id: '5', name: 'Eldoret', address: 'Eldoret, Kenya' },
-    { id: '6', name: 'Kiambu', address: 'Kiambu, Kenya' },
-    { id: '7', name: 'Machakos', address: 'Machakos, Kenya' },
-    { id: '8', name: 'Kajiado', address: 'Kajiado, Kenya' },
-    { id: '9', name: 'Murang\'a', address: 'Murang\'a, Kenya' },
-    { id: '10', name: 'Nyeri', address: 'Nyeri, Kenya' },
-  ];
 
   useEffect(() => {
     if (visible) {
-      setSuggestions(popularLocations);
+      setSuggestions(POPULAR_LOCATIONS);
     }
   }, [visible]);
 
@@ -61,15 +60,15 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
     setSearchQuery(text);
     
     if (text.length < 2) {
-      setSuggestions(popularLocations);
+      setSuggestions(POPULAR_LOCATIONS);
       return;
     }
 
     setLoading(true);
-    
+
     // Filter popular locations based on search
-    const filtered = popularLocations.filter(
-      loc => loc.name.toLowerCase().includes(text.toLowerCase()) ||
+    const filtered = POPULAR_LOCATIONS.filter(
+      (loc: Suggestion) => loc.name.toLowerCase().includes(text.toLowerCase()) ||
              loc.address.toLowerCase().includes(text.toLowerCase())
     );
     
@@ -77,14 +76,13 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
     setLoading(false);
   };
 
-  const handleSelectLocation = (location: Suggestion) => {
-    setSelectedLocation(location.address);
+const handleSelectLocation = (location: Suggestion) => {
     onSelectLocation(location.address);
     setSearchQuery('');
     onClose();
   };
 
-  const handleUseCurrentLocation = async () => {
+const handleUseCurrentLocation = async () => {
     try {
       setLoading(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -110,7 +108,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
         onSelectLocation(formattedAddress);
         onClose();
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Unable to get your current location.');
     } finally {
       setLoading(false);

@@ -1,8 +1,10 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { requestLocationPermission } from '@/services/locationService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function RoleSelectScreen() {
   const router = useRouter();
@@ -34,8 +36,8 @@ export default function RoleSelectScreen() {
     if (selectedRole === 'consumer') {
       router.push('/consumer/signup');
     } else {
-      // Navigate to supplier signup (to be created)
-      console.log('Supplier flow - not implemented yet');
+      // Navigate to supplier signup
+      router.push('/supplier/signup');
     }
   };
 
@@ -45,6 +47,7 @@ export default function RoleSelectScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppStatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.content}>
         {/* Title */}
         <Text style={styles.title}>Select Your Role</Text>
@@ -70,11 +73,11 @@ export default function RoleSelectScreen() {
                 </View>
               </View>
               <View style={styles.roleTextContainer}>
-                <Text style={[
+<Text style={[
                   styles.roleTitle,
                   selectedRole === 'consumer' && styles.roleTitleSelectedConsumer
                 ]}>
-                  I'm a Consumer
+                  I&apos;m a Consumer
                 </Text>
                 <Text style={styles.roleDescription}>Find Gas Prices Nearby</Text>
               </View>
@@ -102,11 +105,11 @@ export default function RoleSelectScreen() {
                 </View>
               </View>
               <View style={styles.roleTextContainer}>
-                <Text style={[
+<Text style={[
                   styles.roleTitle,
                   selectedRole === 'supplier' && styles.roleTitleSelectedSupplier
                 ]}>
-                  I'm a Supplier
+                  I&apos;m a Supplier
                 </Text>
                 <Text style={styles.roleDescription}>Manage My Gas Business</Text>
               </View>

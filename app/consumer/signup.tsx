@@ -1,3 +1,4 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { LocationPicker } from '@/components/LocationPicker';
 import {
   Divider,
@@ -9,45 +10,70 @@ import {
   SignupHeader,
 } from '@/components/signup';
 import { useConsumerSignup } from '@/hooks/useConsumerSignup';
-import { signInWithGoogle, signUpWithEmail } from '@/services/authService';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ConsumerSignup() {
   const router = useRouter();
-  const { formData, updateField, validateForm } = useConsumerSignup();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
+  const {
+    formData,
+    updateField,
+    signUp,
+    authState,
+    clearError,
+  } = useConsumerSignup();
+
   const handleSignUp = async () => {
-    if (!validateForm()) {
-      console.log('Form validation failed');
-      return;
+    const result = await signUp();
+
+    if (result.success) {
+      // Show email verification popup
+      Alert.alert(
+        'Verify Your Email',
+        'A verification link has been sent to your email address. Please open your email and click on the link to verify your account.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push('/consumer/login'),
+          }
+        ]
+      );
+    } else {
+      Alert.alert('Error', result.error || 'Failed to sign up. Please try again.');
     }
-    const result = await signUpWithEmail({
-      fullName: formData.fullName,
-      phoneOrEmail: formData.phoneOrEmail,
-      password: formData.password,
-      location: formData.location,
-    });
-    console.log('Signup result:', result);
   };
 
   const handleGoogleSignIn = async () => {
-    const result = await signInWithGoogle();
-    console.log('Google signin result:', result);
+    // Google Sign-In coming soon
+    Alert.alert('Coming Soon', 'Signing in with Google is coming soon!');
+    /*
+    const result = await signInWithGoogle('consumer');
+
+    if (result.success) {
+      Alert.alert('Success', 'Signed in with Google successfully!');
+    } else {
+      Alert.alert('Error', result.error || 'Google sign-in failed');
+    }
+    */
   };
 
   const handleLogin = () => {
-    // Navigate to login page
-    console.log('Navigate to login');
+    router.push('/consumer/login');
   };
 
   const handleSetLocation = () => {
@@ -60,12 +86,23 @@ export default function ConsumerSignup() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppStatusBar barStyle="light-content" backgroundColor="#4CAF50" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <SignupHeader title="Consumer Sign Up" />
+
+          {/* Error Display */}
+          {authState.error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{authState.error}</Text>
+              <TouchableOpacity onPress={clearError}>
+                <FontAwesome5 name="times" size={16} color="#d32f2f" />
+              </TouchableOpacity>
+            </View>
+          )}
 
           <LocationBar
             location={formData.location}
@@ -82,12 +119,22 @@ export default function ConsumerSignup() {
           />
 
           <InputField
+            icon="envelope"
+            iconColor="#4CAF50"
+            placeholder="Email Address"
+            value={formData.email}
+            onChangeText={(text) => updateField('email', text)}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+          <InputField
             icon="mobile-alt"
             iconColor="#4CAF50"
-            placeholder="Phone Number or Email"
-            value={formData.phoneOrEmail}
-            onChangeText={(text) => updateField('phoneOrEmail', text)}
-            keyboardType="email-address"
+            placeholder="Phone Number"
+            value={formData.phoneNumber}
+            onChangeText={(text) => updateField('phoneNumber', text)}
+            keyboardType="phone-pad"
           />
 
           <InputField
@@ -97,6 +144,7 @@ export default function ConsumerSignup() {
             value={formData.password}
             onChangeText={(text) => updateField('password', text)}
             secureTextEntry
+            showToggle
           />
 
           <InputField
@@ -106,9 +154,13 @@ export default function ConsumerSignup() {
             value={formData.confirmPassword}
             onChangeText={(text) => updateField('confirmPassword', text)}
             secureTextEntry
+            showToggle
           />
 
-          <SignUpButton onPress={handleSignUp} />
+          <SignUpButton
+            onPress={handleSignUp}
+            isLoading={authState.isLoading}
+          />
           <Divider />
           <GoogleSignInButton onPress={handleGoogleSignIn} />
           <LoginLink onPress={handleLogin} />
@@ -136,5 +188,19 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
     paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 40,
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    flex: 1,
   },
 });

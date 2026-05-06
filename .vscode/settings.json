@@ -8,5 +8,8 @@
     "**/node_modules": true,
     "**/.git": true,
     "**/.DS_Store": true
-  }
+  },
+  "typescript.tsdk.path": "node_modules/typescript/lib",
+  "typescript.tsdk.promptToUseWorkspaceVersion": true,
+  "js/ts.validate.enabled": true
 }

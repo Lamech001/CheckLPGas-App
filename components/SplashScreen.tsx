@@ -1,0 +1,122 @@
+import { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
+
+interface SplashScreenProps {
+  message?: string;
+  onAnimationComplete?: () => void;
+}
+
+export function SplashScreen({ 
+  message = 'Searching for nearby vendors...',
+  onAnimationComplete 
+}: SplashScreenProps) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    // Fade in and scale animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Call completion callback after animation
+      if (onAnimationComplete) {
+        setTimeout(onAnimationComplete, 1500);
+      }
+    });
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <Animated.View 
+        style={[
+          styles.content,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          }
+        ]}
+      >
+        {/* Logo Container with Orange Circle */}
+        <View style={styles.logoContainer}>
+          <View style={styles.circle}>
+            <Image
+              source={require('@/assets/images/icon.png')}
+              style={styles.logo}
+              contentFit="contain"
+            />
+          </View>
+        </View>
+
+        {/* Brand Name */}
+        <Text style={styles.brandName}>GasAround</Text>
+
+        {/* Loading Message */}
+        <Text style={styles.message}>{message}</Text>
+
+        {/* Loading Indicator */}
+        <ActivityIndicator 
+          size="small" 
+          color="#F97316" 
+          style={styles.loader}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  logoContainer: {
+    marginBottom: 24,
+  },
+  circle: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#FFF7ED', // Light orange background
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#F97316', // Orange border
+  },
+  logo: {
+    width: 120,
+    height: 120,
+  },
+  brandName: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#1E3A5F', // Dark blue
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  message: {
+    fontSize: 16,
+    color: '#6B7280', // Gray
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  loader: {
+    marginTop: 8,
+  },
+});

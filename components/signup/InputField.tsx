@@ -1,5 +1,6 @@
 import { FontAwesome5 } from '@expo/vector-icons';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface InputFieldProps {
   icon: string;
@@ -10,6 +11,7 @@ interface InputFieldProps {
   secureTextEntry?: boolean;
   keyboardType?: 'default' | 'email-address' | 'phone-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  showToggle?: boolean;
 }
 
 export const InputField: React.FC<InputFieldProps> = ({
@@ -21,7 +23,10 @@ export const InputField: React.FC<InputFieldProps> = ({
   secureTextEntry = false,
   keyboardType = 'default',
   autoCapitalize = 'none',
+  showToggle = false,
 }) => {
+  const [isVisible, setIsVisible] = useState(!secureTextEntry);
+
   return (
     <View style={styles.inputContainer}>
       <View style={styles.inputIconContainer}>
@@ -32,11 +37,16 @@ export const InputField: React.FC<InputFieldProps> = ({
         placeholder={placeholder}
         value={value}
         onChangeText={onChangeText}
-        secureTextEntry={secureTextEntry}
+        secureTextEntry={secureTextEntry && !isVisible}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         placeholderTextColor="#999"
       />
+      {showToggle && secureTextEntry && (
+        <TouchableOpacity onPress={() => setIsVisible(!isVisible)} style={styles.toggleContainer}>
+          <FontAwesome5 name={isVisible ? 'eye-slash' : 'eye'} size={18} color="#666" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -62,5 +72,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#333',
+  },
+  toggleContainer: {
+    padding: 8,
   },
 });

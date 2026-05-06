@@ -10,8 +10,8 @@ export const SignupHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
   return (
     <View style={styles.header}>
       <View style={styles.logoContainer}>
-        <FontAwesome5 name="gas-pump" size={28} color="#fff" />
-        <Text style={styles.logoText}>CheckGas</Text>
+        <FontAwesome5 name="fire" size={28} color="#FF5722" />
+        <Text style={styles.logoText}>GasAround</Text>
       </View>
       <Text style={styles.headerTitle}>{title}</Text>
       {subtitle && <Text style={styles.headerSubtitle}>{subtitle}</Text>}

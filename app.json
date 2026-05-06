@@ -1,25 +1,40 @@
 {
   "expo": {
-    "name": "CheckGas",
-    "slug": "CheckGas",
+    "name": "GasAround",
+    "slug": "GasAround",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "checkgas",
+    "scheme": "gasaround",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundColor": "#1A2A53",
+        "foregroundImage": "./assets/images/android-icon-foreground.jpeg",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCxJS7O0KTa8EPKImLjoJ1cLfozf2MvjKQ"
+        }
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.lamech_kosgei.GasAround",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "gasaround"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",
@@ -27,15 +42,17 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/splash-icon.jpeg",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#FFFFFF",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1A2A53",
+            "image": "./assets/images/splash-icon.jpeg"
           }
         }
       ]
@@ -43,6 +60,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "61fd7208-df41-4f19-a225-3b3b1ef11382"
+      }
     }
   }
 }

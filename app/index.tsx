@@ -1,11 +1,33 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
+import { SplashScreen } from '@/components/SplashScreen';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<'consumer' | 'supplier' | null>(null);
+
+  useEffect(() => {
+    // Simulate app initialization
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <SplashScreen 
+        message="Searching for nearby vendors..."
+        onAnimationComplete={() => setIsLoading(false)}
+      />
+    );
+  }
 
   const handleContinue = () => {
     if (selectedRole) {
@@ -18,17 +40,18 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppStatusBar barStyle="light-content" backgroundColor="#2E7D32" />
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
             <FontAwesome5 name="fire" size={36} color="#fff" />
           </View>
-          <Text style={styles.logoText}>CHECK-GAS</Text>
+          <Text style={styles.logoText}>GasAround</Text>
         </View>
 
         {/* Title */}
-        <Text style={styles.title}>Welcome to Check-Gas</Text>
+        <Text style={styles.title}>Welcome to GasAround</Text>
         <Text style={styles.subtitle}>Find & Compare Cooking Gas Prices Near You</Text>
 
         {/* Divider */}

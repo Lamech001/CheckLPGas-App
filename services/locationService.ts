@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 
 export interface LocationData {
   latitude: number;
@@ -32,20 +32,29 @@ export const getCurrentLocation = async (): Promise<LocationData | null> => {
       accuracy: Location.Accuracy.Balanced,
     });
 
-    // Reverse geocode to get address
-    const addresses = await Location.reverseGeocodeAsync({
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-    });
+    const { latitude, longitude } = location.coords;
 
-    const address = addresses[0];
-    const formattedAddress = address 
-      ? `${address.city || address.subregion || ''}, ${address.region || address.country || 'Kenya'}`
-      : 'Unknown Location';
+    // Try to reverse geocode, but fallback to coordinates if service is unavailable
+    let formattedAddress = 'Current Location';
+    
+    try {
+      const addresses = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
+
+      const address = addresses[0];
+      if (address) {
+        formattedAddress = `${address.city || address.subregion || ''}, ${address.region || address.country || 'Kenya'}`;
+      }
+    } catch (geoError) {
+      // Geocoding failed - use coordinates as fallback
+      formattedAddress = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    }
 
     return {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
+      latitude,
+      longitude,
       address: formattedAddress,
     };
   } catch (error) {
