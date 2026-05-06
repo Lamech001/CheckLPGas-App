@@ -53,17 +53,20 @@ const firebaseConfig = {
 };
 
 // Initialize app only if not already initialized (prevents hot reload errors)
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const isFirstLoad = getApps().length === 0;
+const app = isFirstLoad ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize auth only if not already initialized (prevents auth/already-initialized error)
-// ReactNativeAsyncStorage persistence ensures sessions survive app restarts
+// Initialize auth with React Native persistence (REQUIRED for React Native)
+// Must use initializeAuth on first load BEFORE any getAuth calls
 let auth: Auth;
-try {
-  auth = getAuth(app);
-} catch {
+if (isFirstLoad) {
+  // First app load - initialize with AsyncStorage persistence
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(ReactNativeAsyncStorage),
   });
+} else {
+  // Hot reload - auth already initialized with persistence
+  auth = getAuth(app);
 }
 
 // Firestore settings for unlimited timeout and better connectivity
@@ -74,20 +77,48 @@ const firestoreSettings = {
   }),
 };
 
-// Initialize Firestore only if not already initialized
+// Initialize Firestore with explicit settings on first load
 let db: Firestore;
-try {
-  db = getFirestore(app);
-} catch {
+if (isFirstLoad) {
   db = initializeFirestore(app, firestoreSettings);
+} else {
+  try {
+    db = getFirestore(app);
+  } catch {
+    db = initializeFirestore(app, firestoreSettings);
+  }
 }
 
-// Note: Firestore SDK has a built-in 10-second warning message for slow connections,
-// but it continues retrying indefinitely. The unlimited cache ensures data works offline.
+// Explicitly enable network to fix "offline" issues
+// Firestore sometimes starts in offline mode, especially on first load
+enableNetwork(db).catch((err) => {
+  console.log('Network enable warning (non-critical):', err);
+});
+
+// Auth network recovery - retry connection on network errors
+const MAX_RETRIES = 3;
+export const retryWithNetworkRecovery = async <T,>(
+  operation: () => Promise<T>,
+  retries = MAX_RETRIES
+): Promise<T> => {
+  try {
+    return await operation();
+  } catch (error: any) {
+    if ((error.code === 'auth/network-request-failed' || error.message?.includes('network')) && retries > 0) {
+      console.log(`Network error, retrying... (${retries} attempts left)`);
+      // Wait 1 second before retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Try to re-enable network
+      await enableNetwork(db).catch(() => {});
+      return retryWithNetworkRecovery(operation, retries - 1);
+    }
+    throw error;
+  }
+};
 
 export { auth, db };
 export const storage = getStorage(app);
 
-// Enable offline persistence helper
+// Network control helpers
 export const enableFirestoreNetwork = () => enableNetwork(db);
 export const disableFirestoreNetwork = () => disableNetwork(db);

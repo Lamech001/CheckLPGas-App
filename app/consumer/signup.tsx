@@ -1,28 +1,28 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { LocationPicker } from '@/components/LocationPicker';
 import {
-  Divider,
-  GoogleSignInButton,
-  InputField,
-  LocationBar,
-  LoginLink,
-  SignUpButton,
-  SignupHeader,
+    Divider,
+    GoogleSignInButton,
+    InputField,
+    LocationBar,
+    LoginLink,
+    SignUpButton,
+    SignupHeader,
 } from '@/components/signup';
 import { useConsumerSignup } from '@/hooks/useConsumerSignup';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,8 +33,11 @@ export default function ConsumerSignup() {
   const {
     formData,
     updateField,
+    blurField,
     signUp,
     authState,
+    fieldErrors,
+    touchedFields,
     clearError,
   } = useConsumerSignup();
 
@@ -115,7 +118,9 @@ export default function ConsumerSignup() {
             placeholder="Full Name"
             value={formData.fullName}
             onChangeText={(text) => updateField('fullName', text)}
+            onBlur={() => blurField('fullName')}
             autoCapitalize="words"
+            error={touchedFields.has('fullName') ? fieldErrors.fullName : undefined}
           />
 
           <InputField
@@ -124,8 +129,10 @@ export default function ConsumerSignup() {
             placeholder="Email Address"
             value={formData.email}
             onChangeText={(text) => updateField('email', text)}
+            onBlur={() => blurField('email')}
             keyboardType="email-address"
             autoCapitalize="none"
+            error={touchedFields.has('email') ? fieldErrors.email : undefined}
           />
 
           <InputField
@@ -134,7 +141,9 @@ export default function ConsumerSignup() {
             placeholder="Phone Number"
             value={formData.phoneNumber}
             onChangeText={(text) => updateField('phoneNumber', text)}
+            onBlur={() => blurField('phoneNumber')}
             keyboardType="phone-pad"
+            error={touchedFields.has('phoneNumber') ? fieldErrors.phoneNumber : undefined}
           />
 
           <InputField
@@ -143,8 +152,11 @@ export default function ConsumerSignup() {
             placeholder="Password"
             value={formData.password}
             onChangeText={(text) => updateField('password', text)}
+            onBlur={() => blurField('password')}
             secureTextEntry
             showToggle
+            error={touchedFields.has('password') ? fieldErrors.password : undefined}
+            helperText="At least 6 characters with letters and numbers"
           />
 
           <InputField
@@ -153,8 +165,10 @@ export default function ConsumerSignup() {
             placeholder="Confirm Password"
             value={formData.confirmPassword}
             onChangeText={(text) => updateField('confirmPassword', text)}
+            onBlur={() => blurField('confirmPassword')}
             secureTextEntry
             showToggle
+            error={touchedFields.has('confirmPassword') ? fieldErrors.confirmPassword : undefined}
           />
 
           <SignUpButton

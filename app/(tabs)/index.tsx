@@ -240,13 +240,28 @@ export default function ConsumerHomeScreen() {
           <View style={styles.listHeader}>
             <View>
               <Text style={styles.listTitle}>Nearby Suppliers</Text>
+              {lastUpdated && (
+                <Text style={styles.lastUpdatedText}>
+                  Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              )}
               {isStale && (
                 <Text style={styles.staleText}>Updating...</Text>
               )}
             </View>
-            <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
-              <FontAwesome5 name={suppliersFetching ? "spinner" : "sync-alt"} size={14} color={AppColors.primary} spin={suppliersFetching} />
-              <Text style={styles.refreshText}>Refresh</Text>
+            <TouchableOpacity 
+              onPress={handleRefresh} 
+              style={[styles.refreshButton, suppliersFetching && styles.refreshButtonActive]}
+              disabled={suppliersFetching}
+            >
+              <FontAwesome5 
+                name={suppliersFetching ? "spinner" : "sync-alt"} 
+                size={14} 
+                color={suppliersFetching ? AppColors.textTertiary : AppColors.primary} 
+              />
+              <Text style={[styles.refreshText, suppliersFetching && styles.refreshTextDisabled]}>
+                {suppliersFetching ? 'Updating...' : 'Refresh'}
+              </Text>
             </TouchableOpacity>
           </View>
           <SupplierList suppliers={suppliers || []} />
@@ -404,5 +419,16 @@ const styles = StyleSheet.create({
     fontSize: AppSizes.fontXSmall,
     color: AppColors.textTertiary,
     marginTop: AppSizes.spacingXS,
+  },
+  lastUpdatedText: {
+    fontSize: AppSizes.fontXSmall,
+    color: AppColors.textTertiary,
+    marginTop: AppSizes.spacingXS,
+  },
+  refreshButtonActive: {
+    opacity: 0.7,
+  },
+  refreshTextDisabled: {
+    color: AppColors.textTertiary,
   },
 });

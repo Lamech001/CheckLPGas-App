@@ -82,7 +82,7 @@ export const getSuppliersWithinRadius = async (
           );
           return { data, distance };
         })
-        .filter(({ distance }) => distance <= radiusKm)
+        .filter(({ data, distance }) => data.isOpen === true && distance <= radiusKm)
         .map(({ data, distance }) => ({ ...data, distance }))
         .sort((a, b) => a.distance - b.distance);
 
@@ -235,7 +235,7 @@ export const subscribeToSuppliers = (
           );
           return { data, distance };
         })
-        .filter(({ distance }) => distance <= radiusKm)
+        .filter(({ data, distance }) => data.isOpen === true && distance <= radiusKm)
         .map(({ data, distance }) => ({ ...data, distance }))
         .sort((a, b) => a.distance - b.distance);
 

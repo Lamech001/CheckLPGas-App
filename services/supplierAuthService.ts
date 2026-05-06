@@ -1,9 +1,9 @@
 import { auth, db } from '@/config/firebase';
 import {
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
-  updateProfile,
-  User,
+    createUserWithEmailAndPassword,
+    sendEmailVerification,
+    updateProfile,
+    User,
 } from 'firebase/auth';
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { SupplierData } from './types/supplier';
@@ -30,12 +30,13 @@ export interface SupplierRegistrationData {
   };
 }
 
-// Register a new supplier
+// Register a new supplier - OPTIMIZED for speed (under 5 seconds)
+// Runs operations in parallel where possible
 export const registerSupplier = async (
   data: SupplierRegistrationData
 ): Promise<{ success: boolean; user?: User; error?: string }> => {
   try {
-    // Create user account
+    // Step 1: Create user account (required before other operations)
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       data.email,
@@ -44,29 +45,33 @@ export const registerSupplier = async (
 
     const user = userCredential.user;
 
-    // Update profile
-    await updateProfile(user, {
-      displayName: data.fullName,
-    });
+    // Step 2: Run profile update and Firestore creation in PARALLEL
+    // This saves ~1-2 seconds vs running sequentially
+    await Promise.all([
+      // Update profile
+      updateProfile(user, {
+        displayName: data.fullName,
+      }),
+      // Create supplier document in Firestore
+      setDoc(doc(db, 'suppliers', user.uid), {
+        uid: user.uid,
+        email: data.email,
+        fullName: data.fullName,
+        phoneNumber: data.phoneNumber,
+        enterpriseName: data.enterpriseName,
+        location: data.location,
+        prices: data.prices,
+        isOpen: true,
+        openingHours: data.openingHours,
+        role: 'supplier',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }),
+    ]);
 
-    // Create supplier document in Firestore
-    await setDoc(doc(db, 'suppliers', user.uid), {
-      uid: user.uid,
-      email: data.email,
-      fullName: data.fullName,
-      phoneNumber: data.phoneNumber,
-      enterpriseName: data.enterpriseName,
-      location: data.location,
-      prices: data.prices,
-      isOpen: true,
-      openingHours: data.openingHours,
-      role: 'supplier',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    // Send email verification
-    await sendEmailVerification(user);
+    // Step 3: Send email verification (non-blocking, fire and forget)
+    // Don't wait for this to complete - speeds up registration
+    sendEmailVerification(user).catch(() => {});
 
     return { success: true, user };
   } catch (error: any) {

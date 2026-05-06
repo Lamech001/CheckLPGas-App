@@ -15,6 +15,7 @@ import {
     getDoc,
     serverTimestamp,
     setDoc,
+    updateDoc,
 } from 'firebase/firestore';
 // Google Sign-In provider - commented out until native build is ready
 // import { nativeGoogleProvider } from './auth/providers/nativeGoogleProvider';
@@ -162,17 +163,17 @@ export const signUpWithEmail = async (userData: {
 // Get user role from Firestore
 export const getUserRole = async (uid: string, retryCount = 0): Promise<{ role: 'consumer' | 'supplier' | null; error?: string }> => {
   try {
+    // Check if user is a supplier first (more specific role)
+    const supplierDoc = await getDoc(doc(db, 'suppliers', uid));
+    if (supplierDoc.exists()) {
+      return { role: 'supplier' };
+    }
+
     // Check if user is a consumer
     const userDoc = await getDoc(doc(db, 'users', uid));
     if (userDoc.exists()) {
       const data = userDoc.data();
       return { role: data.role || 'consumer' };
-    }
-
-    // Check if user is a supplier
-    const supplierDoc = await getDoc(doc(db, 'suppliers', uid));
-    if (supplierDoc.exists()) {
-      return { role: 'supplier' };
     }
 
     return { role: null, error: 'User role not found' };
@@ -182,8 +183,15 @@ export const getUserRole = async (uid: string, retryCount = 0): Promise<{ role: 
       console.error('Error getting user role:', error);
     }
     
-    // For login flow, don't retry - return error immediately for speed
+    // If offline, check if we have a cached role hint from previous session
     if (error.message?.includes('client is offline')) {
+      try {
+        // @ts-ignore
+        const hintedRole = global.userRoleHint;
+        if (hintedRole === 'supplier' || hintedRole === 'consumer') {
+          return { role: hintedRole };
+        }
+      } catch {}
       return { role: null, error: 'offline' };
     }
     
@@ -192,23 +200,21 @@ export const getUserRole = async (uid: string, retryCount = 0): Promise<{ role: 
 };
 
 // Sign in with email and password - ULTRA FAST version
-// No network check delay - Firebase handles offline/online automatically
+// Returns immediately using cached role, updates cache in background
 export const signInWithEmail = async (credentials: {
   email: string;
   password: string;
 }): Promise<{ success: boolean; user?: User; error?: string; emailNotVerified?: boolean; role?: 'consumer' | 'supplier' }> => {
   try {
     // Direct auth call - no network check to save time
-    // Firebase will succeed immediately if credentials are cached, or fail fast if offline
     const { user } = await signInWithEmailAndPassword(
       auth,
       credentials.email,
       credentials.password
     );
 
-    // Check email verification immediately (no reload needed, auth response is fresh)
+    // Check email verification immediately
     if (!user.emailVerified) {
-      // Fire-and-forget verification email
       sendEmailVerification(user).catch(() => {});
       return { 
         success: false, 
@@ -217,27 +223,44 @@ export const signInWithEmail = async (credentials: {
       };
     }
 
-    // SUPER FAST PATH: Assume consumer and return immediately (90% of users)
-    // Fetch role asynchronously in background for next login
-    getUserRole(user.uid).then(roleResult => {
-      if (roleResult.role && roleResult.role !== 'consumer') {
-        // Store role hint for next time
-        try {
-          // @ts-ignore
-          global.userRoleHint = roleResult.role;
-        } catch {}
-      }
-    }).catch(() => {});
+    // ULTRA FAST PATH: Check for cached role hint FIRST
+    let userRole: 'consumer' | 'supplier' | null = null;
+    try {
+      // @ts-ignore
+      userRole = global.userRoleHint;
+    } catch {}
 
-    // Check if we have a role hint from previous check
-    // @ts-ignore
-    const hintedRole = global.userRoleHint;
-    if (hintedRole === 'supplier') {
-      return { success: true, user, role: 'supplier' };
+    if (userRole) {
+      // Return immediately with cached role for instant navigation
+      // Update cache in background for next time
+      getUserRole(user.uid).then(result => {
+        if (result.role) {
+          try {
+            // @ts-ignore
+            global.userRoleHint = result.role;
+          } catch {}
+        }
+      }).catch(() => {});
+      
+      return { success: true, user, role: userRole };
     }
 
-    // Default to consumer for instant response
-    return { success: true, user, role: 'consumer' };
+    // First login: Get role from Firestore (slightly slower but only happens once)
+    const roleResult = await getUserRole(user.uid);
+    
+    if (roleResult.error && !roleResult.role) {
+      return { success: false, error: roleResult.error };
+    }
+    
+    userRole = roleResult.role || 'consumer';
+    
+    // Cache role for instant future logins
+    try {
+      // @ts-ignore
+      global.userRoleHint = userRole;
+    } catch {}
+
+    return { success: true, user, role: userRole };
   } catch (error: any) {
     console.error('Login error:', error);
     const errorMessage = getAuthErrorMessage(error.code);
@@ -273,9 +296,26 @@ export const signInWithGoogle = async (_role: UserRole = 'consumer'): Promise<{
   return { success: false, error: 'Google Sign-In is coming soon!' };
 };
 
-// Sign out
+// Sign out - Also closes supplier shop so they disappear from consumer map
 export const logOut = async (): Promise<{ success: boolean; error?: string }> => {
   try {
+    const user = auth.currentUser;
+    
+    // If user is a supplier, close their shop before logging out
+    if (user) {
+      try {
+        const roleResult = await getUserRole(user.uid);
+        if (roleResult.role === 'supplier') {
+          // Close shop so supplier disappears from consumer map
+          const supplierRef = doc(db, 'suppliers', user.uid);
+          await updateDoc(supplierRef, { isOpen: false });
+        }
+      } catch (e) {
+        // Don't block logout if shop close fails
+        console.log('Could not close supplier shop:', e);
+      }
+    }
+    
     await signOut(auth);
     return { success: true };
   } catch (error: any) {

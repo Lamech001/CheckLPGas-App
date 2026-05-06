@@ -3,7 +3,7 @@ import { getCurrentLocation } from '@/services/locationService';
 import { registerSupplier, SupplierRegistrationData } from '@/services/supplierAuthService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,11 +16,22 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PriceInput {
   size: 6 | 13 | 19;
   price: string;
   inStock: boolean;
+}
+
+// Field errors type
+interface FieldErrors {
+  enterpriseName?: string;
+  fullName?: string;
+  email?: string;
+  password?: string;
+  phoneNumber?: string;
+  address?: string;
 }
 
 export default function SupplierSignupScreen() {
@@ -39,12 +50,62 @@ export default function SupplierSignupScreen() {
   const [openingTime, setOpeningTime] = useState('08:00');
   const [closingTime, setClosingTime] = useState('18:00');
 
+  // Field validation errors
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+
   // Prices for each cylinder size
   const [prices, setPrices] = useState<PriceInput[]>([
     { size: 6, price: '', inStock: true },
     { size: 13, price: '', inStock: true },
     { size: 19, price: '', inStock: true },
   ]);
+
+  // Field validation
+  const validateField = (field: keyof FieldErrors, value: string): string | undefined => {
+    switch (field) {
+      case 'enterpriseName':
+        if (!value.trim()) return 'Enterprise name is required';
+        if (value.trim().length < 2) return 'Name must be at least 2 characters';
+        return undefined;
+      case 'fullName':
+        if (!value.trim()) return 'Full name is required';
+        if (value.trim().length < 2) return 'Name must be at least 2 characters';
+        return undefined;
+      case 'email':
+        if (!value.trim()) return 'Email is required';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email';
+        return undefined;
+      case 'password':
+        if (!value) return 'Password is required';
+        if (value.length < 6) return 'Password must be at least 6 characters';
+        return undefined;
+      case 'phoneNumber':
+        if (!value.trim()) return 'Phone number is required';
+        if (!/^[\d\s\-+()]{10,}$/.test(value)) return 'Please enter a valid phone number';
+        return undefined;
+      case 'address':
+        if (!value.trim()) return 'Shop location is required';
+        return undefined;
+      default:
+        return undefined;
+    }
+  };
+
+  const updateField = (field: keyof FieldErrors, value: string, setter: (v: string) => void) => {
+    setter(value);
+    setTouchedFields(prev => new Set(prev).add(field));
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const blurField = (field: keyof FieldErrors) => {
+    const value = { enterpriseName, fullName, email, password, phoneNumber, address }[field];
+    setTouchedFields(prev => new Set(prev).add(field));
+    const error = validateField(field, value);
+    setFieldErrors(prev => ({ ...prev, [field]: error }));
+  };
 
   const handleGetLocation = async () => {
     setLocationLoading(true);
@@ -149,23 +210,48 @@ export default function SupplierSignupScreen() {
           }
         });
       } else {
-        Alert.alert('Registration Failed', result.error || 'Something went wrong. Please try again.');
+        // Check for network errors
+        const errorMsg = result.error || 'Something went wrong. Please try again.';
+        if (errorMsg.includes('network') || errorMsg.includes('offline')) {
+          Alert.alert(
+            'Network Error',
+            'Please check your internet connection and try again.\n\n' +
+            'Tips:\n' +
+            '• Turn WiFi/mobile data off and on\n' +
+            '• Move to an area with better signal\n' +
+            '• Restart the app'
+          );
+        } else {
+          Alert.alert('Registration Failed', errorMsg);
+        }
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to register. Please try again.');
+      const errorMsg = error.message || 'Failed to register. Please try again.';
+      if (errorMsg.includes('network') || errorMsg.includes('offline')) {
+        Alert.alert(
+          'Network Error',
+          'Please check your internet connection and try again.\n\n' +
+          'Tips:\n' +
+          '• Turn WiFi/mobile data off and on\n' +
+          '• Move to an area with better signal\n' +
+          '• Restart the app'
+        );
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <AppStatusBar backgroundColor="#2E7D32" barStyle="light-content" />
-      
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safeArea}>
+      <AppStatusBar backgroundColor="#000000" barStyle="light-content" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Info Card */}
         <View style={styles.infoCard}>
           <FontAwesome5 name="store" size={24} color="#1976D2" />
@@ -178,69 +264,104 @@ export default function SupplierSignupScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Enterprise Information</Text>
           
-          <View style={styles.inputContainer}>
-            <FontAwesome5 name="building" size={16} color="#666" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, touchedFields.has('enterpriseName') && fieldErrors.enterpriseName && styles.inputError]}>
+            <FontAwesome5 name="building" size={16} color={touchedFields.has('enterpriseName') && fieldErrors.enterpriseName ? '#f44336' : '#666'} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Enterprise/Shop Name"
               value={enterpriseName}
-              onChangeText={setEnterpriseName}
+              onChangeText={(text) => updateField('enterpriseName', text, setEnterpriseName)}
+              onBlur={() => blurField('enterpriseName')}
               placeholderTextColor="#666"
             />
+            {touchedFields.has('enterpriseName') && fieldErrors.enterpriseName && (
+              <FontAwesome5 name="exclamation-circle" size={16} color="#f44336" />
+            )}
           </View>
+          {touchedFields.has('enterpriseName') && fieldErrors.enterpriseName && (
+            <Text style={styles.fieldErrorText}>{fieldErrors.enterpriseName}</Text>
+          )}
 
-          <View style={styles.inputContainer}>
-            <FontAwesome5 name="user" size={16} color="#666" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, touchedFields.has('fullName') && fieldErrors.fullName && styles.inputError]}>
+            <FontAwesome5 name="user" size={16} color={touchedFields.has('fullName') && fieldErrors.fullName ? '#f44336' : '#666'} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Your Full Name"
               value={fullName}
-              onChangeText={setFullName}
+              onChangeText={(text) => updateField('fullName', text, setFullName)}
+              onBlur={() => blurField('fullName')}
               placeholderTextColor="#666"
             />
+            {touchedFields.has('fullName') && fieldErrors.fullName && (
+              <FontAwesome5 name="exclamation-circle" size={16} color="#f44336" />
+            )}
           </View>
+          {touchedFields.has('fullName') && fieldErrors.fullName && (
+            <Text style={styles.fieldErrorText}>{fieldErrors.fullName}</Text>
+          )}
         </View>
 
         {/* Account Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Details</Text>
           
-          <View style={styles.inputContainer}>
-            <FontAwesome5 name="envelope" size={16} color="#666" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, touchedFields.has('email') && fieldErrors.email && styles.inputError]}>
+            <FontAwesome5 name="envelope" size={16} color={touchedFields.has('email') && fieldErrors.email ? '#f44336' : '#666'} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Email Address"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => updateField('email', text, setEmail)}
+              onBlur={() => blurField('email')}
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor="#666"
             />
+            {touchedFields.has('email') && fieldErrors.email && (
+              <FontAwesome5 name="exclamation-circle" size={16} color="#f44336" />
+            )}
           </View>
+          {touchedFields.has('email') && fieldErrors.email && (
+            <Text style={styles.fieldErrorText}>{fieldErrors.email}</Text>
+          )}
 
-          <View style={styles.inputContainer}>
-            <FontAwesome5 name="lock" size={16} color="#666" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, touchedFields.has('password') && fieldErrors.password && styles.inputError]}>
+            <FontAwesome5 name="lock" size={16} color={touchedFields.has('password') && fieldErrors.password ? '#f44336' : '#666'} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="Password (min 6 characters)"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => updateField('password', text, setPassword)}
+              onBlur={() => blurField('password')}
               secureTextEntry
               placeholderTextColor="#666"
             />
+            {touchedFields.has('password') && fieldErrors.password && (
+              <FontAwesome5 name="exclamation-circle" size={16} color="#f44336" />
+            )}
           </View>
+          {touchedFields.has('password') && fieldErrors.password && (
+            <Text style={styles.fieldErrorText}>{fieldErrors.password}</Text>
+          )}
 
-          <View style={styles.inputContainer}>
-            <FontAwesome5 name="phone" size={16} color="#666" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, touchedFields.has('phoneNumber') && fieldErrors.phoneNumber && styles.inputError]}>
+            <FontAwesome5 name="phone" size={16} color={touchedFields.has('phoneNumber') && fieldErrors.phoneNumber ? '#f44336' : '#666'} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Phone Number (e.g., +254712345678)"
+              placeholder="Phone Number"
               value={phoneNumber}
-              onChangeText={setPhoneNumber}
+              onChangeText={(text) => updateField('phoneNumber', text, setPhoneNumber)}
+              onBlur={() => blurField('phoneNumber')}
               keyboardType="phone-pad"
               placeholderTextColor="#666"
             />
+            {touchedFields.has('phoneNumber') && fieldErrors.phoneNumber && (
+              <FontAwesome5 name="exclamation-circle" size={16} color="#f44336" />
+            )}
           </View>
+          {touchedFields.has('phoneNumber') && fieldErrors.phoneNumber && (
+            <Text style={styles.fieldErrorText}>{fieldErrors.phoneNumber}</Text>
+          )}
         </View>
 
         {/* Location */}
@@ -362,19 +483,31 @@ export default function SupplierSignupScreen() {
           )}
         </TouchableOpacity>
 
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+        {/* Login Link for Existing Users */}
+        <View style={styles.loginContainer}>
+          <Text style={styles.loginText}>Already registered? </Text>
+          <TouchableOpacity onPress={() => router.push('/consumer/login')}>
+            <Text style={styles.loginLink}>Log In</Text>
+          </TouchableOpacity>
+        </View>
+
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  keyboardView: {
+    flex: 1,
+  },
   scrollContent: {
     padding: 16,
+    paddingBottom: 32,
   },
   infoCard: {
     flexDirection: 'row',
@@ -540,7 +673,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  bottomPadding: {
-    height: 32,
+  loginContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
+  },
+  loginText: {
+    fontSize: 18,
+    color: '#666',
+  },
+  loginLink: {
+    fontSize: 18,
+    color: '#1976D2',
+    fontWeight: '600',
+  },
+  inputError: {
+    borderColor: '#f44336',
+    borderWidth: 1.5,
+  },
+  fieldErrorText: {
+    color: '#f44336',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 40,
+    marginBottom: 8,
   },
 });

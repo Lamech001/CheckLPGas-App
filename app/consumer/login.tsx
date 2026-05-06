@@ -1,3 +1,4 @@
+import { signInWithEmail } from '@/services/authService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -34,20 +35,19 @@ export default function ConsumerLogin() {
     setError(null);
 
     try {
-      // Import the auth service
-      const { signInWithEmail } = await import('@/services/authService');
-      
-      // Login without timeout - will complete when Firebase responds
+      // Login - pre-loaded for instant response
       const result = await signInWithEmail({
         email: email.trim(),
         password,
       });
 
       if (result.success) {
-        // INSTANT NAVIGATION: Navigate immediately while auth state updates in background
-        // This makes login feel instant to the user
+        // INSTANT NAVIGATION: Clear loading and navigate immediately
+        setIsLoading(false);
         const targetRoute = result.role === 'supplier' ? '/supplier/dashboard' : '/(tabs)';
-        router.replace(targetRoute); // Use replace instead of push to prevent back-navigation to login
+        // Use setImmediate to ensure UI updates before navigation
+        setImmediate(() => router.replace(targetRoute));
+        return;
       } else if (result.emailNotVerified) {
         // Email not verified - show detailed instructions
         Alert.alert(
@@ -62,6 +62,11 @@ export default function ConsumerLogin() {
           'Check your spam folder if you don\'t see the email.',
           [{ text: 'OK', style: 'default' }]
         );
+      } else if (result.error === 'offline') {
+        // Offline - silently log in as consumer, will update when back online
+        setIsLoading(false);
+        router.replace('/(tabs)');
+        return;
       } else {
         setError(result.error || 'Login failed. Please try again.');
       }

@@ -1,6 +1,7 @@
 import { AppColors, AppSizes } from '@/constants/appTheme';
 import { CylinderSize, formatDistance, formatPrice, getPriceForSize, SupplierWithDistance } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface SupplierCardProps {
@@ -9,6 +10,7 @@ interface SupplierCardProps {
 }
 
 export const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, selectedSize }) => {
+  const router = useRouter();
   const handleCall = () => {
     Linking.openURL(`tel:${supplier.phoneNumber}`);
   };
@@ -61,9 +63,18 @@ export const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, selectedSi
       
       <View style={styles.rightContent}>
         <Text style={styles.price}>{getDisplayPrice()}</Text>
-        <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-          <FontAwesome5 name="phone" size={16} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.chatButton} onPress={() => router.push({
+            pathname: '/consumer/chat',
+            params: { supplier: JSON.stringify(supplier) }
+          })}>
+            <FontAwesome5 name="comment" size={14} color="#fff" />
+            <Text style={styles.chatButtonText}>Chat</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+            <FontAwesome5 name="phone" size={14} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -139,6 +150,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: AppColors.textPrimary,
     marginBottom: AppSizes.spacingSmall,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#1976D2',
+  },
+  chatButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   callButton: {
     width: 40,

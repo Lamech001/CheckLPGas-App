@@ -147,8 +147,22 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
         }
       },
       (err) => {
-        if (isMounted.current && suppliers.length === 0) {
-          setError(err);
+        if (isMounted.current) {
+          // Auto-recover from offline errors by re-enabling network
+          if (err.message?.includes('offline') || err.message?.includes('client is offline')) {
+            console.log('Offline detected, attempting network recovery...');
+            import('@/config/firebase').then(({ enableFirestoreNetwork }) => {
+              enableFirestoreNetwork().then(() => {
+                console.log('Network re-enabled successfully');
+                // Retry fetch after recovery
+                setTimeout(() => fetchSuppliers(true), 1000);
+              }).catch(() => {});
+            }).catch(() => {});
+          }
+          // Only show error if no data available
+          if (suppliers.length === 0) {
+            setError(err);
+          }
         }
       }
     );
