@@ -68,7 +68,7 @@ export function useUserProfile(options: UseUserProfileOptions): UseUserProfileRe
           const meta = await getCacheMeta(CACHE_KEYS.USER.PROFILE);
           if (meta) {
             const age = Date.now() - meta.timestamp;
-            setIsStale(age > CACHE_TTL.USER.PROFILE * 0.8);
+            setIsStale(age > 20 * 60 * 1000); // 20 minutes - optimized for <2s response
             setLastUpdated(new Date(meta.timestamp));
           }
           setIsLoading(false);

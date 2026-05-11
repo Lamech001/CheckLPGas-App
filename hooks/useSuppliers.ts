@@ -45,6 +45,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const isMounted = useRef(true);
   const lastFetchRef = useRef<{ lat: number; lng: number; radius: number } | null>(null);
+  const hasDataRef = useRef(false);
 
   // Check if location has changed significantly (>100m)
   const hasLocationChanged = useCallback((
@@ -90,7 +91,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
           const meta = await getCacheMeta(cacheKey);
           if (meta) {
             const age = Date.now() - meta.timestamp;
-            const isCacheStale = age > 2 * 60 * 1000; // 2 minutes
+            const isCacheStale = age > 60 * 1000; // 1 minute - optimized for <2s response
             setIsStale(isCacheStale);
             setLastUpdated(new Date(meta.timestamp));
             setIsLoading(false);
@@ -103,6 +104,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
       
       if (isMounted.current) {
         setSuppliers(fresh);
+        hasDataRef.current = fresh.length > 0;
         setIsStale(false);
         setLastUpdated(new Date());
         lastFetchRef.current = { lat: latitude, lng: longitude, radius: radiusKm };
@@ -110,7 +112,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     } catch (err) {
       if (isMounted.current) {
         // Only show error if we don't have cached data
-        if (suppliers.length === 0) {
+        if (!hasDataRef.current) {
           setError(err instanceof Error ? err : new Error(String(err)));
         }
       }
@@ -120,7 +122,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
         setIsFetching(false);
       }
     }
-  }, [latitude, longitude, radiusKm, hasLocationChanged, suppliers.length]);
+  }, [latitude, longitude, radiusKm, hasLocationChanged]);
 
   // Initial fetch and subscription
   useEffect(() => {
@@ -142,6 +144,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
       (newSuppliers, fromCache) => {
         if (isMounted.current && !fromCache) {
           setSuppliers(newSuppliers);
+          hasDataRef.current = newSuppliers.length > 0;
           setIsStale(false);
           setLastUpdated(new Date());
         }
@@ -160,7 +163,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
             }).catch(() => {});
           }
           // Only show error if no data available
-          if (suppliers.length === 0) {
+          if (!hasDataRef.current) {
             setError(err);
           }
         }

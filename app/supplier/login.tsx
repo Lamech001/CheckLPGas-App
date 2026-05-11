@@ -1,6 +1,5 @@
 import { signInWithEmail } from '@/services/authService';
 import { FontAwesome5 } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useRouter, usePathname } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -17,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function ConsumerLogin() {
+export default function SupplierLogin() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,69 +39,50 @@ export default function ConsumerLogin() {
   };
 
   const handleLogin = async () => {
-    // Immediate haptic feedback for fast button response
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
     if (!email.trim() || !password) {
       setError('Please enter both email and password');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     
-    // Set loading immediately for responsive UI
     setIsLoading(true);
     setError(null);
 
     try {
-      // Login - pre-loaded for instant response
       const result = await signInWithEmail({
         email: email.trim(),
         password,
       });
 
       if (result.success) {
-        // Validate that user is actually a consumer, not a supplier
-        if (result.role === 'supplier') {
+        // Validate that user is actually a supplier, not a consumer
+        if (result.role === 'consumer') {
           setIsLoading(false);
           Alert.alert(
             'Wrong Login Portal',
-            'You are registered as a supplier. Please use the supplier login instead.',
+            'You are registered as a consumer. Please use the consumer login instead.',
             [{ text: 'OK', style: 'default' }]
           );
           return;
         }
-        // Success haptic feedback
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // Navigate once to the consumer home route
+        // INSTANT NAVIGATION: Go to supplier dashboard
         setIsLoading(false);
-        await safeReplace('/(tabs)');
+        await safeReplace('/supplier/dashboard');
         return;
       } else if (result.emailNotVerified) {
-        // Email not verified - show detailed instructions
         Alert.alert(
           'Email Not Verified',
           'Please verify your email before logging in.\n\n' +
-          'We\'ve sent a new verification link to your email.\n\n' +
-          'To verify:\n' +
-          '1. Check your email inbox\n' +
-          '2. Look for an email from Firebase\n' +
-          '3. Click the verification link\n' +
-          '4. Return to the app and try logging in again\n\n' +
-          'Check your spam folder if you don\'t see the email.',
+          'We\'ve sent a new verification link to your email.',
           [{ text: 'OK', style: 'default' }]
         );
       } else if (result.error === 'offline') {
-        // Offline - silently log in as consumer, will update when back online
         setIsLoading(false);
-        router.replace('/(tabs)');
+        router.replace('/supplier/dashboard');
+        return;
       } else {
-        setIsLoading(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setError(result.error || 'Login failed. Please try again.');
       }
     } catch (err: any) {
-      // Handle specific error types
       if (err.message?.includes('network')) {
         setError('Network error. Please check your internet connection.');
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
@@ -119,10 +99,7 @@ export default function ConsumerLogin() {
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      Alert.alert(
-        'Enter Email', 
-        'Please enter your email address to reset your password.'
-      );
+      Alert.alert('Enter Email', 'Please enter your email address to reset your password.');
       return;
     }
 
@@ -131,17 +108,7 @@ export default function ConsumerLogin() {
       const result = await resetPassword(email.trim());
       
       if (result.success) {
-        Alert.alert(
-          'Password Reset Email Sent',
-          'We\'ve sent a password reset link to your email address.\n\n' +
-          'To reset your password:\n' +
-          '1. Open your email app or browser\n' +
-          '2. Look for an email from Firebase (noreply@gasaround.firebaseapp.com)\n' +
-          '3. Click the reset link in the email\n' +
-          '4. Enter and confirm your new password\n\n' +
-          'If you don\'t see the email, check your spam folder.',
-          [{ text: 'OK', style: 'default' }]
-        );
+        Alert.alert('Password Reset Email Sent', 'We\'ve sent a password reset link to your email address.');
       } else {
         Alert.alert('Error', result.error || 'Failed to send reset email');
       }
@@ -151,7 +118,7 @@ export default function ConsumerLogin() {
   };
 
   const handleSignUp = () => {
-    router.push('/consumer/signup');
+    router.push('/supplier/signup');
   };
 
   return (
@@ -176,8 +143,8 @@ export default function ConsumerLogin() {
           <View style={styles.cardContainer}>
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Welcome Back!</Text>
-              <Text style={styles.subtitle}>Log in to continue</Text>
+              <Text style={styles.title}>Supplier Login</Text>
+              <Text style={styles.subtitle}>Access your business dashboard</Text>
             </View>
 
             {/* Error Message */}
@@ -196,7 +163,7 @@ export default function ConsumerLogin() {
               <View style={styles.inputWrapper}>
                 <View style={styles.inputContainer}>
                   <View style={styles.inputIconContainer}>
-                    <FontAwesome5 name="envelope" size={20} color="#4CAF50" />
+                    <FontAwesome5 name="envelope" size={20} color="#FF9800" />
                   </View>
                   <TextInput
                     style={styles.input}
@@ -214,7 +181,7 @@ export default function ConsumerLogin() {
               <View style={styles.inputWrapper}>
                 <View style={styles.inputContainer}>
                   <View style={styles.inputIconContainer}>
-                    <FontAwesome5 name="lock" size={20} color="#4CAF50" />
+                    <FontAwesome5 name="lock" size={20} color="#FF9800" />
                   </View>
                   <TextInput
                     style={styles.input}
@@ -290,7 +257,7 @@ export default function ConsumerLogin() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#E65100',
   },
   keyboardView: {
     flex: 1,
@@ -404,22 +371,22 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#FF9800',
     fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#FF9800',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#FF9800',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   loginButtonDisabled: {
-    backgroundColor: '#a5d6a7',
+    backgroundColor: '#ffcc80',
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -462,7 +429,7 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#FF9800',
     fontWeight: 'bold',
   },
 });

@@ -28,8 +28,10 @@ export const getCurrentLocation = async (): Promise<LocationData | null> => {
       return null;
     }
 
+    // Use low accuracy for faster response under 2 seconds
     const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.Low,
+      timeInterval: 5000, // 5 seconds max wait
     });
 
     const { latitude, longitude } = location.coords;

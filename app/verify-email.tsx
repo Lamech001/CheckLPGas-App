@@ -1,10 +1,9 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
 import { auth } from '@/config/firebase';
 import { getUserRole } from '@/services/authService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { applyActionCode, checkActionCode, onAuthStateChanged } from 'firebase/auth';
+import { applyActionCode, checkActionCode } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -83,16 +82,18 @@ export default function VerifyEmailScreen() {
     }
   };
 
-  // Listen for auth state changes - if email gets verified, redirect
+  // Check current auth user once after render for signup verification flow
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user && !oobCode) { // Only handle if not from deep link
-        // Reload to get fresh emailVerified status
+    if (oobCode) return;
+
+    const checkVerified = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      try {
         await user.reload();
         if (user.emailVerified) {
-          // Show success state before redirect
           setIsVerified(true);
-          // Small delay to show success state
           setTimeout(() => {
             if (role === 'supplier') {
               router.replace('/supplier/dashboard');
@@ -101,10 +102,12 @@ export default function VerifyEmailScreen() {
             }
           }, 1500);
         }
+      } catch (error) {
+        console.warn('[VerifyEmail] Could not reload user:', error);
       }
-    });
+    };
 
-    return () => unsubscribe();
+    checkVerified();
   }, [role, router, oobCode]);
 
   const handleOpenEmail = async () => {
@@ -140,7 +143,7 @@ export default function VerifyEmailScreen() {
 
   const handleBackToLogin = () => {
     if (from === 'supplier') {
-      router.replace('/consumer/login');
+      router.replace({ pathname: '/consumer/login', params: { role: 'supplier' } });
     } else {
       router.replace('/role-select');
     }
@@ -149,7 +152,6 @@ export default function VerifyEmailScreen() {
   if (isVerifying) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent]}>
-        <AppStatusBar backgroundColor="#fff" barStyle="dark-content" />
         <ActivityIndicator size="large" color="#1976D2" />
         <Text style={styles.verifyingText}>Verifying your email...</Text>
       </SafeAreaView>
@@ -159,7 +161,6 @@ export default function VerifyEmailScreen() {
   if (isVerified) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent]}>
-        <AppStatusBar backgroundColor="#fff" barStyle="dark-content" />
         <View style={styles.successIconCircle}>
           <FontAwesome5 name="check" size={48} color="#fff" />
         </View>
@@ -171,7 +172,6 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#fff" barStyle="dark-content" />
       
       <View style={styles.content}>
         {/* Success Icon */}
@@ -189,7 +189,7 @@ export default function VerifyEmailScreen() {
         
         {/* Description */}
         <Text style={styles.description}>
-          We've sent a verification link to:
+          We&apos;ve sent a verification link to:
         </Text>
         <Text style={styles.emailText}>{email || 'your email address'}</Text>
         
@@ -205,7 +205,7 @@ export default function VerifyEmailScreen() {
 
         {/* Resend Section */}
         <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>Didn't receive the email?</Text>
+          <Text style={styles.resendText}>Didn&apos;t receive the email?</Text>
           <TouchableOpacity onPress={handleResendEmail} disabled={resendLoading}>
             {resendLoading ? (
               <ActivityIndicator size="small" color="#1976D2" />
@@ -227,7 +227,7 @@ export default function VerifyEmailScreen() {
         <View style={styles.helpContainer}>
           <FontAwesome5 name="info-circle" size={16} color="#666" />
           <Text style={styles.helpText}>
-            The verification link will expire in 24 hours. Check your spam folder if you don't see it.
+            The verification link will expire in 24 hours. Check your spam folder if you don&apos;t see it.
           </Text>
         </View>
 

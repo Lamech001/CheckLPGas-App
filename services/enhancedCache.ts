@@ -126,6 +126,7 @@ export interface CacheOptions {
   version?: string;
   persistent?: boolean; // Save to AsyncStorage
   priority?: 'memory' | 'storage' | 'both';
+  maxAge?: number; // Allow stale data when needed
 }
 
 const DEFAULT_OPTIONS: CacheOptions = {
@@ -398,12 +399,13 @@ export async function getOrFetch<T>(
     onBackgroundUpdate?: (data: T) => void;
   } = {}
 ): Promise<{ data: T; fromCache: boolean; stale: boolean }> {
-  const cached = await getCache<T>(key, { version: options.version });
+  const cached = await getCache<T>(key, { version: options.version, maxAge: options.maxAge });
   
   if (cached !== null) {
     // Check if stale
     const meta = await getCacheMeta(key);
-    const isStale = meta ? (Date.now() - meta.timestamp) > (options.ttl || CACHE_TTL.API.DEFAULT) * 0.8 : false;
+    const ttl = options.ttl ?? CACHE_TTL.API.DEFAULT;
+    const isStale = meta ? (Date.now() - meta.timestamp) > ttl * 0.8 : false;
     
     // Background refresh if enabled and stale
     if (options.backgroundRefresh && isStale) {

@@ -2,7 +2,6 @@
  * Cache Configuration - Keys and TTL constants
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Memory cache store
 export const memoryCache = new Map<string, CacheEntry<any>>();
@@ -54,32 +53,32 @@ export const CACHE_KEYS = {
   },
 } as const;
 
-// TTL Configuration (in milliseconds)
+// TTL Configuration (in milliseconds) - Optimized for <2s response
 export const CACHE_TTL = {
-  // Auth - shorter TTL for security
+  // Auth - optimized for instant login
   AUTH: {
-    USER: 5 * 60 * 1000,        // 5 minutes
-    USER_ROLE: 10 * 60 * 1000,  // 10 minutes
-    TOKEN: 30 * 60 * 1000,      // 30 minutes
-    SESSION: 60 * 60 * 1000,    // 1 hour
-    PERMISSIONS: 15 * 60 * 1000, // 15 minutes
+    USER: 30 * 60 * 1000,       // 30 minutes
+    USER_ROLE: 60 * 60 * 1000,   // 1 hour - role persists longer
+    TOKEN: 60 * 60 * 1000,       // 1 hour
+    SESSION: 24 * 60 * 60 * 1000, // 24 hours
+    PERMISSIONS: 30 * 60 * 1000,  // 30 minutes
   },
-  // Suppliers
+  // Suppliers - shorter TTL for fresher data
   SUPPLIERS: {
-    LIST: 5 * 60 * 1000,        // 5 minutes
-    DETAIL: 10 * 60 * 1000,     // 10 minutes
-    NEARBY: 2 * 60 * 1000,      // 2 minutes (location-based, refresh often)
-    PRICES: 3 * 60 * 1000,      // 3 minutes (prices change)
-    FAVORITES: 60 * 60 * 1000,  // 1 hour
+    LIST: 3 * 60 * 1000,        // 3 minutes - quick refresh
+    DETAIL: 5 * 60 * 1000,       // 5 minutes
+    NEARBY: 60 * 1000,           // 1 minute - location changes fast
+    PRICES: 2 * 60 * 1000,       // 2 minutes - prices change often
+    FAVORITES: 30 * 60 * 1000,   // 30 minutes
   },
   // User
   USER: {
-    PROFILE: 60 * 60 * 1000,    // 1 hour
-    LOCATION: 30 * 60 * 1000,    // 30 minutes
+    PROFILE: 30 * 60 * 1000,     // 30 minutes
+    LOCATION: 15 * 60 * 1000,    // 15 minutes
     SETTINGS: 24 * 60 * 60 * 1000, // 24 hours
     PREFERENCES: 24 * 60 * 60 * 1000,
     SEARCH_HISTORY: 7 * 24 * 60 * 60 * 1000, // 7 days
-    NOTIFICATIONS: 5 * 60 * 1000, // 5 minutes
+    NOTIFICATIONS: 2 * 60 * 1000, // 2 minutes
   },
   // App
   APP: {

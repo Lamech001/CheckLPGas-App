@@ -16,7 +16,7 @@ import {
     setCache,
     type CacheOptions,
 } from '@/services/enhancedCache';
-import { collection, doc, getDoc, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { CylinderSize, SupplierData, SupplierWithDistance } from './types/supplier';
 
 // Re-export types
@@ -42,38 +42,54 @@ export const calculateDistance = (
   return R * c;
 };
 
+const MAX_NEARBY_RADIUS_KM = 1;
+
 // Generate cache key for location-based queries
 const generateNearbyCacheKey = (
   lat: number,
   lng: number,
   radiusKm: number
 ): string => {
+  const effectiveRadiusKm = Math.min(radiusKm, MAX_NEARBY_RADIUS_KM);
+
   // Round coordinates to reduce cache fragmentation (4 decimal places = ~11m precision)
   const roundedLat = Math.round(lat * 10000) / 10000;
   const roundedLng = Math.round(lng * 10000) / 10000;
-  return CACHE_KEYS.SUPPLIERS.NEARBY(roundedLat, roundedLng, radiusKm);
+  return CACHE_KEYS.SUPPLIERS.NEARBY(roundedLat, roundedLng, effectiveRadiusKm);
 };
 
 /**
- * Fetch suppliers within radius with caching
+ * Fetch open suppliers within radius with caching
  * Implements stale-while-revalidate pattern
  */
 export const getSuppliersWithinRadius = async (
   userLat: number,
   userLon: number,
-  radiusKm: number = 1
+  radiusKm: number = MAX_NEARBY_RADIUS_KM
 ): Promise<SupplierWithDistance[]> => {
-  const cacheKey = generateNearbyCacheKey(userLat, userLon, radiusKm);
+  const effectiveRadiusKm = Math.min(radiusKm, MAX_NEARBY_RADIUS_KM);
+  const cacheKey = generateNearbyCacheKey(userLat, userLon, effectiveRadiusKm);
 
   return getOrFetch(
     cacheKey,
     async () => {
-      const suppliersRef = collection(db, 'suppliers');
-      const querySnapshot = await getDocs(suppliersRef);
+      const suppliersQuery = query(
+        collection(db, 'suppliers'),
+        where('isOpen', '==', true)
+      );
+      const querySnapshot = await getDocs(suppliersQuery);
+      console.log('[Suppliers] Found', querySnapshot.docs.length, 'open suppliers in Firestore');
       
       const suppliers = querySnapshot.docs
         .map((doc) => {
           const data = doc.data() as SupplierData;
+          
+          // Debug: Check if location exists
+          if (!data.location || !data.location.latitude || !data.location.longitude) {
+            console.warn('[Suppliers] Missing location for supplier:', data.uid);
+            return null;
+          }
+          
           const distance = calculateDistance(
             userLat,
             userLon,
@@ -82,10 +98,18 @@ export const getSuppliersWithinRadius = async (
           );
           return { data, distance };
         })
-        .filter(({ data, distance }) => data.isOpen === true && distance <= radiusKm)
+        .filter((item): item is { data: SupplierData; distance: number } => item !== null)
+        .filter(({ data, distance }) => {
+          const isWithinRadius = distance <= effectiveRadiusKm;
+          if (!isWithinRadius) {
+            console.log('[Suppliers] Supplier', data.uid, 'outside radius. Distance:', distance.toFixed(2), 'km, max:', effectiveRadiusKm, 'km');
+          }
+          return isWithinRadius;
+        })
         .map(({ data, distance }) => ({ ...data, distance }))
         .sort((a, b) => a.distance - b.distance);
 
+      console.log('[Suppliers] Returning', suppliers.length, 'suppliers within', effectiveRadiusKm, 'km');
       return suppliers;
     },
     {
@@ -93,6 +117,7 @@ export const getSuppliersWithinRadius = async (
       version: '1.0',
       backgroundRefresh: true,
       persistent: true,
+      maxAge: Infinity,
     }
   ).then(result => result.data);
 };
@@ -103,10 +128,11 @@ export const getSuppliersWithinRadius = async (
 export const getCachedSuppliers = async (
   userLat: number,
   userLon: number,
-  radiusKm: number = 1
+  radiusKm: number = MAX_NEARBY_RADIUS_KM
 ): Promise<SupplierWithDistance[] | null> => {
-  const cacheKey = generateNearbyCacheKey(userLat, userLon, radiusKm);
-  return getCache<SupplierWithDistance[]>(cacheKey, { version: '1.0' });
+  const effectiveRadiusKm = Math.min(radiusKm, MAX_NEARBY_RADIUS_KM);
+  const cacheKey = generateNearbyCacheKey(userLat, userLon, effectiveRadiusKm);
+  return getCache<SupplierWithDistance[]>(cacheKey, { version: '1.0', maxAge: Infinity });
 };
 
 /**
@@ -206,7 +232,8 @@ export const subscribeToSuppliers = (
   callback: (suppliers: SupplierWithDistance[], fromCache: boolean) => void,
   onError?: (error: Error) => void
 ) => {
-  const cacheKey = generateNearbyCacheKey(userLat, userLon, radiusKm);
+  const effectiveRadiusKm = Math.min(radiusKm, MAX_NEARBY_RADIUS_KM);
+  const cacheKey = generateNearbyCacheKey(userLat, userLon, effectiveRadiusKm);
   let initialCallbackFired = false;
 
   // Get cached data first for immediate display
@@ -217,16 +244,27 @@ export const subscribeToSuppliers = (
   });
 
   // Set up real-time listener
-  const suppliersRef = collection(db, 'suppliers');
+  const suppliersQuery = query(
+    collection(db, 'suppliers'),
+    where('isOpen', '==', true)
+  );
   
   return onSnapshot(
-    suppliersRef,
+    suppliersQuery,
     (snapshot) => {
       initialCallbackFired = true;
+      console.log('[Suppliers] Real-time listener: Found', snapshot.docs.length, 'open suppliers');
       
       const suppliers = snapshot.docs
         .map((doc) => {
           const data = doc.data() as SupplierData;
+          
+          // Debug: Check if location exists
+          if (!data.location || !data.location.latitude || !data.location.longitude) {
+            console.warn('[Suppliers] Missing location for supplier:', data.uid);
+            return null;
+          }
+          
           const distance = calculateDistance(
             userLat,
             userLon,
@@ -235,9 +273,12 @@ export const subscribeToSuppliers = (
           );
           return { data, distance };
         })
-        .filter(({ data, distance }) => data.isOpen === true && distance <= radiusKm)
+        .filter((item): item is { data: SupplierData; distance: number } => item !== null)
+        .filter(({ data, distance }) => distance <= effectiveRadiusKm)
         .map(({ data, distance }) => ({ ...data, distance }))
         .sort((a, b) => a.distance - b.distance);
+
+      console.log('[Suppliers] Real-time: Returning', suppliers.length, 'suppliers within range');
 
       // Update cache with fresh data
       setCache(cacheKey, suppliers, {
@@ -341,15 +382,19 @@ export const invalidateSupplierCache = async (supplierId?: string): Promise<void
 export const prefetchSuppliers = async (
   lat: number,
   lng: number,
-  radiusKm: number = 1
+  radiusKm: number = MAX_NEARBY_RADIUS_KM
 ): Promise<void> => {
-  const cacheKey = generateNearbyCacheKey(lat, lng, radiusKm);
+  const effectiveRadiusKm = Math.min(radiusKm, MAX_NEARBY_RADIUS_KM);
+  const cacheKey = generateNearbyCacheKey(lat, lng, effectiveRadiusKm);
   
   await prefetchCache(
     cacheKey,
     async () => {
-      const suppliersRef = collection(db, 'suppliers');
-      const querySnapshot = await getDocs(suppliersRef);
+      const suppliersQuery = query(
+        collection(db, 'suppliers'),
+        where('isOpen', '==', true)
+      );
+      const querySnapshot = await getDocs(suppliersQuery);
       
       return querySnapshot.docs
         .map((doc) => {
@@ -362,7 +407,7 @@ export const prefetchSuppliers = async (
           );
           return { ...data, distance };
         })
-        .filter((s) => s.distance <= radiusKm)
+        .filter((s) => s.distance <= effectiveRadiusKm)
         .sort((a, b) => a.distance - b.distance);
     },
     {

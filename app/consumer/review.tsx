@@ -73,7 +73,7 @@ export default function ReviewScreen() {
         [
           {
             text: 'View Orders',
-            onPress: () => router.push('/(tabs)/orders'),
+            onPress: () => router.push('/(tabs)'),
           },
         ]
       );
@@ -135,7 +135,7 @@ export default function ReviewScreen() {
           <Text style={styles.alreadyReviewedText}>
             You have already submitted a review for this order.
           </Text>
-          <TouchableOpacity style={styles.viewOrdersButton} onPress={() => router.push('/(tabs)/orders')}>
+          <TouchableOpacity style={styles.viewOrdersButton} onPress={() => router.push('/(tabs)')}>
             <Text style={styles.viewOrdersButtonText}>View Orders</Text>
           </TouchableOpacity>
         </View>

@@ -1,4 +1,3 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
 import { NotificationsPanel } from '@/components/consumer/NotificationsPanel';
 import { SideMenu } from '@/components/consumer/SideMenu';
 import { SupplierList } from '@/components/consumer/SupplierList';
@@ -102,6 +101,15 @@ export default function ConsumerHomeScreen() {
         if (!user) return;
         
         try {
+          // Check global hint first for instant response
+          // @ts-ignore
+          const hintedRole = global.userRoleHint;
+          if (hintedRole === 'supplier') {
+            router.replace('/supplier/dashboard');
+            return;
+          }
+          
+          // Fallback to Firestore check
           const roleResult = await getUserRole(user.uid);
           if (roleResult.role === 'supplier') {
             router.replace('/supplier/dashboard');
@@ -112,7 +120,7 @@ export default function ConsumerHomeScreen() {
       };
       
       checkRoleAndRedirect();
-    }, 500); // Small delay to let UI render first
+    }, 200); // Quick 200ms delay for instant UI render
     
     return () => clearTimeout(timeoutId);
   }, []);
@@ -145,13 +153,13 @@ export default function ConsumerHomeScreen() {
   // Real-time updates are now handled internally by useSuppliers hook
   // No need for manual subscription management
 
-  // Auto-refresh every 30 minutes to ensure fresh data without excessive API calls
+  // Auto-refresh every 10 minutes to ensure fresh data while keeping app responsive
   useEffect(() => {
     if (!userLocation) return;
 
-    const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+    const REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes - optimized for <2s response
     const intervalId = setInterval(() => {
-      console.log('Auto-refreshing suppliers (30-minute interval)');
+      console.log('Auto-refreshing suppliers (10-minute interval)');
       refreshSuppliers();
     }, REFRESH_INTERVAL);
 
@@ -201,9 +209,6 @@ export default function ConsumerHomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Status Bar */}
-      <AppStatusBar backgroundColor={AppColors.statusBarConsumer} barStyle="light-content" />
-
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>

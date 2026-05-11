@@ -1,4 +1,4 @@
-import { auth, db } from '@/config/firebase';
+import { auth, db, enableFirestoreNetwork } from '@/config/firebase';
 import { AppColors, AppSizes } from '@/constants/appTheme';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
@@ -54,8 +54,7 @@ export const ConsumerProfile: React.FC<ConsumerProfileProps> = ({ visible, onClo
 
       // Try to enable network if offline (Firestore offline mode)
       try {
-        const { enableNetwork } = await import('firebase/firestore');
-        await enableNetwork(db);
+        await enableFirestoreNetwork();
       } catch (networkErr) {
         // Ignore network enable errors, proceed anyway
       }

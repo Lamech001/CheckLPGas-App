@@ -1,4 +1,3 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
 import { SplashScreen } from '@/components/SplashScreen';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -12,10 +11,10 @@ export default function WelcomeScreen() {
   const [selectedRole, setSelectedRole] = useState<'consumer' | 'supplier' | null>(null);
 
   useEffect(() => {
-    // Simulate app initialization
+    // Quick app initialization - under 2 seconds
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 2500);
+    }, 1200);
 
     return () => clearTimeout(timer);
   }, []);
@@ -29,7 +28,15 @@ export default function WelcomeScreen() {
     );
   }
 
-  const handleContinue = () => {
+  const handleLogin = () => {
+    if (selectedRole === 'consumer') {
+      router.push('/consumer/login');
+    } else if (selectedRole === 'supplier') {
+      router.push('/supplier/login');
+    }
+  };
+
+  const handleSignUp = () => {
     if (selectedRole) {
       router.push({
         pathname: '/role-select',
@@ -40,7 +47,6 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar barStyle="light-content" backgroundColor="#2E7D32" />
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoContainer}>
@@ -102,21 +108,56 @@ export default function WelcomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Continue Button */}
-        <TouchableOpacity
-          style={[styles.continueButton, !selectedRole && styles.continueButtonDisabled]}
-          onPress={handleContinue}
-          disabled={!selectedRole}
-        >
-          <Text style={styles.continueButtonText}>
-            Continue as {selectedRole ? selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1) : '...'}
-          </Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[
+              styles.loginButton,
+              !selectedRole && styles.loginButtonDisabled,
+              selectedRole === 'supplier' && styles.supplierLoginButton
+            ]}
+            onPress={handleLogin}
+            disabled={!selectedRole}
+          >
+            <FontAwesome5 
+              name="sign-in-alt" 
+              size={18} 
+              color="#fff" 
+              style={styles.buttonIcon}
+            />
+            <Text style={styles.loginButtonText}>
+              Log In as {selectedRole ? selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1) : '...'}
+            </Text>
+          </TouchableOpacity>
 
-        {/* Switch Role Later */}
-        <TouchableOpacity style={styles.switchLaterContainer}>
-          <Text style={styles.switchLaterText}>Switch Role Later</Text>
-        </TouchableOpacity>
+          {/* Sign Up Button */}
+          <TouchableOpacity
+            style={[
+              styles.signUpButton,
+              !selectedRole && styles.signUpButtonDisabled,
+              selectedRole === 'supplier' && styles.supplierSignUpButton
+            ]}
+            onPress={handleSignUp}
+            disabled={!selectedRole}
+          >
+            <FontAwesome5 
+              name="user-plus" 
+              size={16} 
+              color={selectedRole === 'supplier' ? '#FF9800' : '#4CAF50'} 
+              style={styles.buttonIcon}
+            />
+            <Text style={[
+              styles.signUpButtonText,
+              selectedRole === 'supplier' && styles.supplierSignUpButtonText
+            ]}>
+              Sign Up as {selectedRole ? selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1) : '...'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Divider */}
+        <View style={styles.divider} />
       </View>
     </SafeAreaView>
   );
@@ -287,11 +328,57 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  switchLaterContainer: {
-    marginTop: 'auto',
+  actionButtonsContainer: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 24,
   },
-  switchLaterText: {
-    color: '#2196F3',
-    fontSize: 16,
+  loginButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  supplierLoginButton: {
+    backgroundColor: '#FF9800',
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  loginButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  buttonIcon: {
+    marginRight: 10,
+  },
+  signUpButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  supplierSignUpButton: {
+    borderColor: '#FF9800',
+  },
+  signUpButtonDisabled: {
+    borderColor: '#ccc',
+  },
+  signUpButtonText: {
+    color: '#4CAF50',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  supplierSignUpButtonText: {
+    color: '#FF9800',
   },
 });

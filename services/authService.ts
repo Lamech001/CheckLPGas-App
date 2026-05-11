@@ -17,8 +17,21 @@ import {
     setDoc,
     updateDoc,
 } from 'firebase/firestore';
-// Google Sign-In provider - commented out until native build is ready
-// import { nativeGoogleProvider } from './auth/providers/nativeGoogleProvider';
+
+const roleLookupCache = new Map<string, Promise<{ role: 'consumer' | 'supplier' | null; error?: string }>>();
+const ROLE_CACHE_TTL = 60000; // 1 minute cache TTL for roles
+const roleCacheExpiry = new Map<string, number>();
+
+// Clean up expired role cache entries
+const cleanupExpiredRoleCache = () => {
+  const now = Date.now();
+  for (const [key, expiry] of roleCacheExpiry.entries()) {
+    if (now > expiry) {
+      roleLookupCache.delete(key);
+      roleCacheExpiry.delete(key);
+    }
+  }
+};
 
 // Check network connectivity
 const checkNetworkConnection = async (): Promise<boolean> => {
@@ -83,27 +96,52 @@ const createUserDocument = async (
   additionalData: Partial<UserData>
 ): Promise<void> => {
   const userRef = doc(db, 'users', user.uid);
-  const userSnapshot = await getDoc(userRef);
+  const { email, displayName } = user;
+  const createdAt = serverTimestamp();
 
-if (!userSnapshot.exists()) {
-    const { email, displayName } = user;
-    const createdAt = serverTimestamp();
+  const userData = {
+    uid: user.uid,
+    email: email || undefined,
+    displayName: displayName || additionalData.displayName || '',
+    phoneNumber: additionalData.phoneNumber || '',
+    role: additionalData.role || 'consumer',
+    location: additionalData.location || '',
+    createdAt,
+    updatedAt: createdAt,
+  };
 
+  // Try to save with retry logic
+  let docSaved = false;
+  let saveAttempts = 0;
+  const maxAttempts = 3;
+
+  while (!docSaved && saveAttempts < maxAttempts) {
     try {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: email || undefined,
-        displayName: displayName || additionalData.displayName || '',
-        phoneNumber: additionalData.phoneNumber || '',
-        role: additionalData.role || 'consumer',
-        location: additionalData.location || '',
-        createdAt,
-        updatedAt: createdAt,
-      });
-    } catch (error) {
-      console.error('Error creating user document:', error);
-      throw error;
+      saveAttempts++;
+      console.log(`[Auth] Creating user document (attempt ${saveAttempts}) for:`, user.uid);
+      await setDoc(userRef, userData);
+      docSaved = true;
+      console.log('[Auth] User document created successfully for:', user.uid);
+    } catch (error: any) {
+      console.error(`[Auth] Document save attempt ${saveAttempts} failed:`, error.message);
+      if (saveAttempts >= maxAttempts) {
+        throw new Error(`Failed to save user data after ${maxAttempts} attempts: ${error.message}`);
+      }
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000 * saveAttempts));
     }
+  }
+
+  // Verify document was saved
+  try {
+    const verifySnap = await getDoc(userRef);
+    if (!verifySnap.exists()) {
+      console.error('[Auth] Document verification failed - not found after save');
+    } else {
+      console.log('[Auth] User document verified in Firestore');
+    }
+  } catch (verifyError: any) {
+    console.error('[Auth] Document verification error:', verifyError.message);
   }
 };
 
@@ -162,41 +200,110 @@ export const signUpWithEmail = async (userData: {
 
 // Get user role from Firestore
 export const getUserRole = async (uid: string, retryCount = 0): Promise<{ role: 'consumer' | 'supplier' | null; error?: string }> => {
-  try {
-    // Check if user is a supplier first (more specific role)
-    const supplierDoc = await getDoc(doc(db, 'suppliers', uid));
-    if (supplierDoc.exists()) {
-      return { role: 'supplier' };
-    }
+  // Clean up expired cache entries
+  cleanupExpiredRoleCache();
 
-    // Check if user is a consumer
-    const userDoc = await getDoc(doc(db, 'users', uid));
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      return { role: data.role || 'consumer' };
+  // Check cache first
+  if (roleLookupCache.has(uid)) {
+    const cachedExpiry = roleCacheExpiry.get(uid);
+    if (cachedExpiry && Date.now() < cachedExpiry) {
+      return roleLookupCache.get(uid)!;
+    } else {
+      // Cache expired, remove it
+      roleLookupCache.delete(uid);
+      roleCacheExpiry.delete(uid);
     }
-
-    return { role: null, error: 'User role not found' };
-  } catch (error: any) {
-    // Only log real errors, not offline issues we handle gracefully
-    if (!error.message?.includes('offline') && !error.message?.includes('network')) {
-      console.error('Error getting user role:', error);
-    }
-    
-    // If offline, check if we have a cached role hint from previous session
-    if (error.message?.includes('client is offline')) {
-      try {
-        // @ts-ignore
-        const hintedRole = global.userRoleHint;
-        if (hintedRole === 'supplier' || hintedRole === 'consumer') {
-          return { role: hintedRole };
-        }
-      } catch {}
-      return { role: null, error: 'offline' };
-    }
-    
-    return { role: null, error: error.message };
   }
+
+  const fetchRole = async (attempt: number): Promise<{ role: 'consumer' | 'supplier' | null; error?: string }> => {
+    try {
+      console.log('[Auth] Looking up role for UID:', uid);
+      
+      // Check if user is a supplier first (more specific role)
+      console.log('[Auth] Checking suppliers collection...');
+      const supplierDoc = await getDoc(doc(db, 'suppliers', uid));
+      if (supplierDoc.exists()) {
+        console.log('[Auth] Found in suppliers collection');
+        return { role: 'supplier' };
+      }
+      console.log('[Auth] Not found in suppliers collection');
+
+      // Check if user is a consumer
+      console.log('[Auth] Checking users collection...');
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        const role = (data.role as 'consumer' | 'supplier') || 'consumer';
+
+        if (!data.role) {
+          console.log('[Auth] User document missing role field, patching with default consumer role');
+          await setDoc(doc(db, 'users', uid), { role }, { merge: true });
+        }
+
+        console.log('[Auth] Found in users collection, role:', role);
+        return { role };
+      }
+
+      console.log('[Auth] User document missing entirely, creating default consumer profile');
+      await setDoc(doc(db, 'users', uid), {
+        role: 'consumer',
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      }, { merge: true });
+
+      console.log('[Auth] Created fallback consumer document for UID:', uid);
+      return { role: 'consumer' };
+    } catch (error: any) {
+      if (error.message?.includes('Target ID already exists')) {
+        if (attempt < 2) {
+          console.warn('[Auth] Firestore internal target collision detected, retrying getUserRole...');
+          await new Promise(resolve => setTimeout(resolve, 200));
+          return fetchRole(attempt + 1);
+        }
+
+        // Treat persistent target collision as transient network/offline state.
+        return { role: null, error: 'offline' };
+      }
+
+      // Handle Firestore SDK internal assertion errors
+      if (error.message?.includes('INTERNAL ASSERTION FAILED') ||
+          error.message?.includes('Unexpected state')) {
+        if (attempt < 2) {
+          console.warn('[Auth] Firestore SDK internal error detected, retrying getUserRole...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          return fetchRole(attempt + 1);
+        }
+
+        // Treat persistent SDK errors as offline state
+        return { role: null, error: 'offline' };
+      }
+
+      // Handle other Firestore errors that might be transient
+      if (
+        error.message?.includes('client is offline') ||
+        error.message?.includes('offline') ||
+        error.message?.includes('unavailable') ||
+        error.message?.includes('deadline-exceeded')
+      ) {
+        if (attempt < 2) {
+          console.warn('[Auth] Transient Firestore error detected, retrying getUserRole...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          return fetchRole(attempt + 1);
+        }
+        return { role: null, error: 'offline' };
+      }
+
+      console.warn('[Auth] Error getting user role:', error);
+
+      return { role: null, error: error.message };
+    }
+  };
+
+  const rolePromise = fetchRole(retryCount);
+  roleLookupCache.set(uid, rolePromise);
+  roleCacheExpiry.set(uid, Date.now() + ROLE_CACHE_TTL);
+
+  return rolePromise;
 };
 
 // Sign in with email and password - ULTRA FAST version
@@ -223,42 +330,25 @@ export const signInWithEmail = async (credentials: {
       };
     }
 
-    // ULTRA FAST PATH: Check for cached role hint FIRST
-    let userRole: 'consumer' | 'supplier' | null = null;
+    // Get role from Firestore - ALWAYS verify for accuracy
+    let roleResult;
     try {
-      // @ts-ignore
-      userRole = global.userRoleHint;
-    } catch {}
-
-    if (userRole) {
-      // Return immediately with cached role for instant navigation
-      // Update cache in background for next time
-      getUserRole(user.uid).then(result => {
-        if (result.role) {
-          try {
-            // @ts-ignore
-            global.userRoleHint = result.role;
-          } catch {}
-        }
-      }).catch(() => {});
-      
-      return { success: true, user, role: userRole };
+      roleResult = await getUserRole(user.uid);
+    } catch (roleError: any) {
+      // Handle Firestore SDK internal errors that might escape the retry logic
+      if (roleError.message?.includes('INTERNAL ASSERTION FAILED') ||
+          roleError.message?.includes('Unexpected state')) {
+        console.warn('[Auth] Firestore SDK error during login, treating as offline');
+        return { success: true, user, role: 'consumer' }; // Default to consumer on SDK errors
+      }
+      throw roleError; // Re-throw other errors
     }
-
-    // First login: Get role from Firestore (slightly slower but only happens once)
-    const roleResult = await getUserRole(user.uid);
     
     if (roleResult.error && !roleResult.role) {
       return { success: false, error: roleResult.error };
     }
     
-    userRole = roleResult.role || 'consumer';
-    
-    // Cache role for instant future logins
-    try {
-      // @ts-ignore
-      global.userRoleHint = userRole;
-    } catch {}
+    const userRole = roleResult.role || 'consumer';
 
     return { success: true, user, role: userRole };
   } catch (error: any) {
@@ -388,7 +478,7 @@ export const resetPassword = async (email: string): Promise<{
 const getAuthErrorMessage = (errorCode: string): string => {
   switch (errorCode) {
     case 'auth/email-already-in-use':
-      return 'This email is already registered. Please sign in or use a different email.';
+      return 'Looks like you already have an account! Please click the "Login" button above to sign in.';
     case 'auth/invalid-email':
       return 'Invalid email address. Please enter a valid email.';
     case 'auth/operation-not-allowed':

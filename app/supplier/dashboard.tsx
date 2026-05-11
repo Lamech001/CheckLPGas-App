@@ -1,27 +1,29 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
+import { NotificationsModal } from '@/components/NotificationsModal';
+import { SettingsModal } from '@/components/SettingsModal';
+import { RatingBreakdown, StarRating } from '@/components/StarRating';
 import { auth } from '@/config/firebase';
-import { logOut } from '@/services/authService';
 import {
-    getSupplierData,
-    subscribeToSupplierData,
-    toggleShopStatus,
-    updateSupplierPrices,
+  getSupplierData,
+  toggleShopStatus,
+  updateSupplierPrices,
 } from '@/services/supplierAuthService';
 import type { SupplierData } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { User } from 'firebase/auth';
+import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PriceData {
   size: 6 | 13 | 19;
@@ -31,39 +33,53 @@ interface PriceData {
 
 export default function SupplierDashboardScreen() {
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [supplierData, setSupplierData] = useState<SupplierData | null>(null);
   const [editedPrices, setEditedPrices] = useState<PriceData[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  
+  // Notifications & Settings
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const user = auth.currentUser;
+  // Check current auth state once when dashboard mounts
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    setUser(currentUser);
+    setAuthLoading(false);
+
+    if (!currentUser) {
+      router.replace('/role-select');
+    }
+  }, [router]);
 
   useEffect(() => {
     if (!user) {
-      Alert.alert('Not Logged In', 'Please log in to access your dashboard.');
-      router.replace('/role-select');
-      return;
-    }
-
-    loadSupplierData();
-  }, []);
-
-  useEffect(() => {
-    if (!auth.currentUser) {
       setLoading(false);
       return;
     }
 
-    const unsubscribe = subscribeToSupplierData(
-      auth.currentUser.uid,
-      (data) => {
-        if (data) {
+    let isActive = true;
+    
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const result = await getSupplierData(user.uid);
+        
+        if (!isActive) return;
+        
+        if (result.success && result.data) {
+          const data = result.data;
           setSupplierData(data);
           setIsOpen(data.isOpen ?? true);
-          
-          // Update prices in real-time
+          setPhoneNumber(data.phoneNumber || '');
+
+          // Update prices
           if (data.prices) {
             const newPrices: PriceData[] = [];
             data.prices.forEach((p: any) => {
@@ -75,17 +91,26 @@ export default function SupplierDashboardScreen() {
             });
             setEditedPrices(newPrices);
           }
+        } else {
+          console.warn('[Dashboard] No supplier data found for:', user.uid);
         }
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Subscription error:', error);
-        setLoading(false);
+      } catch (error) {
+        if (isActive) {
+          console.error('[Dashboard] Error fetching data:', error);
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
       }
-    );
+    };
 
-    return () => unsubscribe();
-  }, []);
+    fetchData();
+
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
 
   const loadSupplierData = async () => {
     if (!user) return;
@@ -157,27 +182,13 @@ export default function SupplierDashboardScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await logOut();
-            if (result.success) {
-              router.replace('/role-select');
-            } else {
-              Alert.alert('Error', 'Failed to logout. Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
+  const handleOpenNotifications = useCallback(() => {
+    setNotificationsVisible(true);
+  }, []);
+
+  const handleOpenSettings = useCallback(() => {
+    setSettingsVisible(true);
+  }, []);
 
   const updatePriceValue = (size: number, field: 'price' | 'inStock', value: number | boolean) => {
     setEditedPrices(prev =>
@@ -191,43 +202,169 @@ export default function SupplierDashboardScreen() {
     return editedPrices.find(p => p.size === size);
   };
 
+  // Prevent rendering if not authenticated
+  if (authLoading || !user) {
+    return null;
+  }
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
         <ActivityIndicator size="large" color="#1976D2" />
         <Text style={styles.loadingText}>Loading your dashboard...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
+  // Create test supplier data for debugging
+  const createTestData = async () => {
+    if (!user) return;
+    try {
+      const { setDoc, doc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/config/firebase');
+      
+      await setDoc(doc(db, 'suppliers', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        fullName: user.displayName || 'Test Supplier',
+        phoneNumber: '0712345678',
+        enterpriseName: 'My Gas Shop',
+        location: {
+          latitude: -1.2921,
+          longitude: 36.8219,
+          address: 'Nairobi, Kenya',
+        },
+        prices: [
+          { size: 6, price: 1200, inStock: true },
+          { size: 13, price: 2500, inStock: true },
+          { size: 19, price: 3800, inStock: true },
+        ],
+        isOpen: true,
+        openingHours: {
+          open: '08:00',
+          close: '20:00',
+        },
+        role: 'supplier',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      Alert.alert('Success', 'Test data created! Pull down to refresh.');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to create test data');
+    }
+  };
+
   if (!supplierData) {
     return (
-      <View style={styles.loadingContainer}>
-        <FontAwesome5 name="exclamation-circle" size={48} color="#f44336" />
-        <Text style={styles.errorText}>Failed to load supplier data</Text>
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <FontAwesome5 name="store" size={48} color="#666" />
+        <Text style={styles.errorText}>Setting up your dashboard...</Text>
+        <Text style={styles.errorSubtext}>
+          If this persists, please restart the app.
+        </Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadSupplierData}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
+          <Text style={styles.retryButtonText}>Refresh</Text>
         </TouchableOpacity>
-      </View>
+        <TouchableOpacity style={[styles.retryButton, { marginTop: 12, backgroundColor: '#FF6B35' }]} onPress={createTestData}>
+          <Text style={styles.retryButtonText}>Create Test Data</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <AppStatusBar backgroundColor="#2E7D32" barStyle="light-content" />
-
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>{supplierData.enterpriseName}</Text>
           <Text style={styles.headerSubtitle}>Supplier Dashboard</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <FontAwesome5 name="sign-out-alt" size={20} color="#f44336" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {/* Notifications Icon */}
+          <TouchableOpacity
+            onPress={handleOpenNotifications}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={styles.iconContainer}>
+              <FontAwesome5 name="bell" size={20} color="#FF6B35" />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+          
+          {/* Settings Icon */}
+          <TouchableOpacity
+            onPress={handleOpenSettings}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={styles.iconContainer}>
+              <FontAwesome5 name="cog" size={20} color="#666" />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
+      
+      {/* Notifications Modal */}
+      <NotificationsModal
+        visible={notificationsVisible}
+        onClose={() => setNotificationsVisible(false)}
+      />
+      
+      {/* Settings Modal */}
+      <SettingsModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        supplierData={supplierData ? {
+          enterpriseName: supplierData.enterpriseName,
+          email: supplierData.email,
+          phoneNumber: supplierData.phoneNumber,
+          isOpen: supplierData.isOpen ?? true,
+        } : null}
+        onToggleShopStatus={handleToggleStatus}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Ratings Card */}
+        <View style={styles.ratingsCard}>
+          <View style={styles.ratingsHeader}>
+            <FontAwesome5 name="star" size={20} color="#F59E0B" />
+            <Text style={styles.ratingsTitle}>Customer Ratings</Text>
+          </View>
+          
+          <View style={styles.ratingsContent}>
+            <View style={styles.averageRatingSection}>
+              <Text style={styles.averageRatingValue}>
+                {(supplierData.rating || 0).toFixed(1)}
+              </Text>
+              <StarRating 
+                rating={supplierData.rating || 0} 
+                size={24}
+                showValue={false}
+              />
+              <Text style={styles.totalRatingsText}>
+                {supplierData.totalRatings || 0} ratings
+              </Text>
+            </View>
+            
+            <View style={styles.breakdownSection}>
+              <RatingBreakdown 
+                distribution={supplierData.ratingDistribution || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }}
+                total={supplierData.totalRatings || 0}
+              />
+            </View>
+          </View>
+        </View>
+
         {/* Shop Status Card */}
         <View style={styles.statusCard}>
           <View style={styles.statusRow}>
@@ -392,7 +529,7 @@ export default function SupplierDashboardScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -416,7 +553,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#666',
+    marginBottom: 8,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#888',
     marginBottom: 24,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
   retryButton: {
     backgroundColor: '#1976D2',
@@ -440,6 +584,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  headerContent: {
+    flex: 1,
+    paddingRight: 12,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -450,11 +598,89 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  logoutButton: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconButton: {
     padding: 8,
+  },
+  iconContainer: {
+    position: 'relative',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#f44336',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 4,
   },
   scrollContent: {
     padding: 16,
+  },
+  ratingsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  ratingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  ratingsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  ratingsContent: {
+    flexDirection: 'row',
+  },
+  averageRatingSection: {
+    alignItems: 'center',
+    paddingRight: 20,
+    borderRightWidth: 1,
+    borderRightColor: '#e0e0e0',
+    minWidth: 100,
+  },
+  averageRatingValue: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  totalRatingsText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  breakdownSection: {
+    flex: 1,
+    paddingLeft: 16,
   },
   statusCard: {
     backgroundColor: '#fff',

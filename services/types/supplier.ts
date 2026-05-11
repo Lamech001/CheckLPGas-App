@@ -25,6 +25,16 @@ export interface SupplierData {
     open: string;
     close: string;
   };
+  // Rating fields
+  rating?: number; // Average rating (0-5)
+  totalRatings?: number; // Total number of ratings
+  ratingDistribution?: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
+import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-native';
 
 interface SplashScreenProps {
   message?: string;
@@ -24,14 +24,14 @@ export function SplashScreen({
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
-        friction: 8,
-        tension: 40,
+        friction: 6,
+        tension: 50,
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Call completion callback after animation
+      // Call completion callback quickly
       if (onAnimationComplete) {
-        setTimeout(onAnimationComplete, 1500);
+        setTimeout(onAnimationComplete, 500);
       }
     });
   }, []);

@@ -2,10 +2,10 @@
   "expo": {
     "name": "GasAround",
     "slug": "GasAround",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "gasaround",
+    "icon": "./assets/images/android-icon-foreground.png",
+    "scheme": "gasaround",                        
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
@@ -13,9 +13,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#1A2A53",
-        "foregroundImage": "./assets/images/android-icon-foreground.jpeg",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "config": {
         "googleMaps": {
@@ -46,20 +44,19 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.jpeg",
+          "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF",
           "dark": {
             "backgroundColor": "#1A2A53",
-            "image": "./assets/images/splash-icon.jpeg"
+            "image": "./assets/images/splash-icon.png"
           }
         }
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},

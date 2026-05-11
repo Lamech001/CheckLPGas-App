@@ -1,28 +1,28 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
 import { LocationPicker } from '@/components/LocationPicker';
 import {
-    Divider,
-    GoogleSignInButton,
-    InputField,
-    LocationBar,
-    LoginLink,
-    SignUpButton,
-    SignupHeader,
+  Divider,
+  GoogleSignInButton,
+  InputField,
+  LocationBar,
+  LoginLink,
+  SignUpButton,
+  SignupHeader,
 } from '@/components/signup';
 import { useConsumerSignup } from '@/hooks/useConsumerSignup';
 import { FontAwesome5 } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -42,9 +42,14 @@ export default function ConsumerSignup() {
   } = useConsumerSignup();
 
   const handleSignUp = async () => {
+    // Immediate haptic feedback for fast button response
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
     const result = await signUp();
 
     if (result.success) {
+      // Success haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Show email verification popup
       Alert.alert(
         'Verify Your Email',
@@ -57,6 +62,8 @@ export default function ConsumerSignup() {
         ]
       );
     } else {
+      // Error haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', result.error || 'Failed to sign up. Please try again.');
     }
   };
@@ -89,7 +96,6 @@ export default function ConsumerSignup() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar barStyle="light-content" backgroundColor="#4CAF50" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}

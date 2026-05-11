@@ -7,7 +7,7 @@ import { db } from '@/config/firebase';
 import { CACHE_KEYS, CACHE_TTL, getCache, setCache } from '@/services/cache';
 import { SupplierData } from '@/services/types/supplier';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface UseSupplierDashboardOptions {
   supplierId: string | null;
@@ -37,7 +37,8 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const isMounted = useRef(true);
 
-  const fetchSupplier = useCallback(async (background = false) => {
+  // Fetch supplier data (defined as regular function inside useEffect scope)
+  const fetchSupplier = async (background = false) => {
     if (!supplierId || !isMounted.current) return;
 
     if (!background) {
@@ -60,7 +61,7 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
           const meta = await getCacheMeta(cacheKey);
           if (meta) {
             const age = Date.now() - meta.timestamp;
-            setIsStale(age > CACHE_TTL.SUPPLIERS.DETAIL * 0.8);
+            setIsStale(age > 3 * 60 * 1000); // 3 minutes - optimized for <2s response
             setLastUpdated(new Date(meta.timestamp));
           }
           setIsLoading(false);
@@ -99,7 +100,7 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
         setIsFetching(false);
       }
     }
-  }, [supplierId, supplier]);
+  };
 
   // Set up real-time subscription
   useEffect(() => {
@@ -148,11 +149,12 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
         unsubscribeRef.current();
       }
     };
-  }, [enabled, supplierId, fetchSupplier]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, supplierId]);
 
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     await fetchSupplier(false);
-  }, [fetchSupplier]);
+  };
 
   return {
     supplier,
@@ -178,7 +180,7 @@ export function useUpdateSupplier(supplierId: string | null): UseUpdateSupplierR
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const performUpdate = useCallback(async (updates: Partial<SupplierData>): Promise<boolean> => {
+  const performUpdate = async (updates: Partial<SupplierData>): Promise<boolean> => {
     if (!supplierId) return false;
 
     setIsLoading(true);
@@ -200,19 +202,19 @@ export function useUpdateSupplier(supplierId: string | null): UseUpdateSupplierR
     } finally {
       setIsLoading(false);
     }
-  }, [supplierId]);
+  };
 
-  const updatePrices = useCallback(async (prices: SupplierData['prices']): Promise<boolean> => {
+  const updatePrices = async (prices: SupplierData['prices']): Promise<boolean> => {
     return performUpdate({ prices });
-  }, [performUpdate]);
+  };
 
-  const updateStatus = useCallback(async (isOpen: boolean): Promise<boolean> => {
+  const updateStatus = async (isOpen: boolean): Promise<boolean> => {
     return performUpdate({ isOpen });
-  }, [performUpdate]);
+  };
 
-  const updatePhone = useCallback(async (phoneNumber: string): Promise<boolean> => {
+  const updatePhone = async (phoneNumber: string): Promise<boolean> => {
     return performUpdate({ phoneNumber });
-  }, [performUpdate]);
+  };
 
   return {
     updatePrices,

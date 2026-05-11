@@ -1,4 +1,3 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
 import { requestLocationPermission } from '@/services/locationService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -41,13 +40,20 @@ export default function RoleSelectScreen() {
     }
   };
 
+  const navigateToLogin = () => {
+    if (selectedRole === 'consumer') {
+      router.push('/consumer/login');
+    } else {
+      router.push('/supplier/login');
+    }
+  };
+
   const handleSwitchRole = () => {
     setSelectedRole(selectedRole === 'consumer' ? 'supplier' : 'consumer');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.content}>
         {/* Title */}
         <Text style={styles.title}>Select Your Role</Text>
@@ -117,18 +123,32 @@ export default function RoleSelectScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Continue Button */}
-        <TouchableOpacity
-          style={[
-            styles.continueButton,
-            selectedRole === 'supplier' && styles.continueButtonSupplier
-          ]}
-          onPress={handleContinue}
-        >
-          <Text style={styles.continueButtonText}>
-            Continue as {selectedRole === 'consumer' ? 'Consumer' : 'Supplier'}
-          </Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[
+              styles.loginButton,
+              selectedRole === 'supplier' && styles.supplierLoginButton
+            ]}
+            onPress={navigateToLogin}
+          >
+            <FontAwesome5 name="sign-in-alt" size={18} color="#fff" style={styles.buttonIcon} />
+            <Text style={styles.loginButtonText}>Log In</Text>
+          </TouchableOpacity>
+
+          {/* Sign Up Button */}
+          <TouchableOpacity
+            style={[
+              styles.signUpButton,
+              selectedRole === 'supplier' && styles.supplierSignUpButton
+            ]}
+            onPress={navigateToSignup}
+          >
+            <FontAwesome5 name="user-plus" size={16} color={selectedRole === 'supplier' ? '#FF9800' : '#4CAF50'} style={styles.buttonIcon} />
+            <Text style={[styles.signUpButtonText, selectedRole === 'supplier' && styles.supplierSignUpButtonText]}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Switch Role */}
         <View style={styles.switchContainer}>
@@ -254,21 +274,52 @@ const styles = StyleSheet.create({
   checkmarkContainer: {
     marginLeft: 8,
   },
-  continueButton: {
+  actionButtonsContainer: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 20,
+  },
+  loginButton: {
+    width: '100%',
     height: 56,
     borderRadius: 8,
     backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    flexDirection: 'row',
   },
-  continueButtonSupplier: {
+  supplierLoginButton: {
     backgroundColor: '#FF9800',
   },
-  continueButtonText: {
+  loginButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  buttonIcon: {
+    marginRight: 10,
+  },
+  signUpButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  supplierSignUpButton: {
+    borderColor: '#FF9800',
+  },
+  signUpButtonText: {
+    color: '#4CAF50',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  supplierSignUpButtonText: {
+    color: '#FF9800',
   },
   switchContainer: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
-import { useNavigation } from '@react-navigation/native';
 import * as NavigationBar from 'expo-navigation-bar';
+import { usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect } from 'react';
 import { Platform, StatusBar as RNStatusBar } from 'react-native';
@@ -15,7 +15,7 @@ export const AppStatusBar: React.FC<AppStatusBarProps> = ({
   barStyle = 'light-content',
   navBarButtonColor = 'dark',
 }) => {
-  const navigation = useNavigation();
+  const pathname = usePathname();
 
   const applyStatusBar = useCallback(() => {
     // Set status bar color immediately using RN StatusBar for Android
@@ -29,11 +29,7 @@ export const AppStatusBar: React.FC<AppStatusBarProps> = ({
 
   useEffect(() => {
     applyStatusBar();
-
-    // Re-apply when screen comes into focus
-    const unsubscribe = navigation.addListener('focus', applyStatusBar);
-    return unsubscribe;
-  }, [navigation, applyStatusBar]);
+  }, [pathname, applyStatusBar]);
 
   // Return actual StatusBar component from expo-status-bar
   // Map barStyle: 'light-content' -> 'light', 'dark-content' -> 'dark', 'default' -> 'auto'

@@ -3,12 +3,13 @@
  * Features: disk caching, memory cache, prefetching, LRU eviction
  */
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useEffect, useState } from 'react';
 import { CACHE_KEYS, CACHE_TTL, getCache, getCacheKeys, removeCache, setCache } from './enhancedCache';
 
 // Cache directory for images
 const getImageCacheDir = () => {
+  // @ts-ignore - cacheDirectory exists at runtime
   const base = FileSystem.cacheDirectory ?? 'file:///cache/';
   return base.endsWith('/') ? base + 'images/' : base + '/images/';
 };

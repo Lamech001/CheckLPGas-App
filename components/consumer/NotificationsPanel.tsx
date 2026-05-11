@@ -199,7 +199,7 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ visible,
                 <FontAwesome5 name="bell-slash" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>No notifications yet</Text>
                 <Text style={styles.emptySubtext}>
-                  We'll notify you when prices drop or new suppliers open nearby!
+                  We&apos;ll notify you when prices drop or new suppliers open nearby!
                 </Text>
               </View>
             ) : (

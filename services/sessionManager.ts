@@ -3,12 +3,11 @@
  * Features: Auto token refresh, connection monitoring, session persistence
  */
 
-import { auth, db } from '@/config/firebase';
+import { auth, db, enableFirestoreNetwork } from '@/config/firebase';
 import { CACHE_KEYS, CACHE_TTL, getCache, setCache } from '@/services/cache';
 import NetInfo from '@react-native-community/netinfo';
 import { getIdToken, onAuthStateChanged, User } from 'firebase/auth';
-import { enableNetwork } from 'firebase/firestore';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, type NativeEventSubscription } from 'react-native';
 
 interface SessionState {
   isConnected: boolean;
@@ -25,6 +24,7 @@ class SessionManager {
   private unsubscribeAuth: (() => void) | null = null;
   private unsubscribeNetInfo: (() => void) | null = null;
   private tokenRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  private refreshPromise: Promise<void> | null = null;
   private currentUser: User | null = null;
   private isInitialized = false;
 
@@ -56,7 +56,7 @@ class SessionManager {
     });
 
     // Monitor app state for session management
-    AppState.addEventListener('change', this.handleAppStateChange);
+    this.unsubscribeAppState = AppState.addEventListener('change', this.handleAppStateChange);
 
     // Load cached session state
     this.loadSessionState();
@@ -73,7 +73,7 @@ class SessionManager {
     
     // Enable Firestore network
     try {
-      await enableNetwork(db);
+      await enableFirestoreNetwork();
     } catch {
       // Silent fail - Firestore handles this internally
     }
@@ -153,7 +153,7 @@ class SessionManager {
       
       // Re-enable Firestore network smoothly
       try {
-        await enableNetwork(db);
+        await enableFirestoreNetwork();
       } catch {
         // Silent fail - Firestore handles this internally
       }
@@ -233,8 +233,24 @@ class SessionManager {
   cleanup(): void {
     this.unsubscribeAuth?.();
     this.unsubscribeNetInfo?.();
+    if (this.unsubscribeAppState) {
+      this.unsubscribeAppState.remove();
+      this.unsubscribeAppState = null;
+    }
     this.stopTokenRefreshTimer();
     this.isInitialized = false;
+  }
+
+  private unsubscribeAppState: NativeEventSubscription | null = null;
+
+  private constructor() {
+    this.isInitialized = false;
+    this.unsubscribeAuth = null;
+    this.unsubscribeNetInfo = null;
+    this.unsubscribeAppState = null;
+    this.currentUser = null;
+    this.tokenRefreshTimer = null;
+    this.refreshPromise = null;
   }
 }
 

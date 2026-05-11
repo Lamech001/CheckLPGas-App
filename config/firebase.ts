@@ -4,8 +4,7 @@ import type { Auth } from 'firebase/auth';
 import { getAuth, initializeAuth } from 'firebase/auth';
 // @ts-ignore - getReactNativePersistence is available but not in types
 import { getReactNativePersistence } from 'firebase/auth';
-import type { Firestore } from 'firebase/firestore';
-import { disableNetwork, enableNetwork, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { disableNetwork, enableNetwork, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 // Suppress Firebase Firestore internal errors from console (smooth UX)
@@ -20,6 +19,10 @@ const suppressedPatterns = [
   'transport errored',
   'Could not reach Cloud Firestore backend',
   '@firebase/firestore',
+  'INTERNAL ASSERTION FAILED',
+  'Unexpected state',
+  'FIRESTORE',
+  'Firestore internal target collision detected',
 ];
 
 const shouldSuppress = (message: any): boolean => {
@@ -33,6 +36,13 @@ console.warn = (...args: any[]) => {
 };
 
 console.error = (...args: any[]) => {
+  // Suppress Firestore internal assertion errors (SDK bug)
+  if (args[0] && typeof args[0] === 'string' && 
+      (args[0].includes('INTERNAL ASSERTION FAILED') || 
+       args[0].includes('FIRESTORE') && args[0].includes('Unexpected state'))) {
+    console.log('[Firestore SDK] Suppressed internal error:', args[0].substring(0, 100));
+    return;
+  }
   if (shouldSuppress(args[0])) return;
   originalConsoleError.apply(console, args);
 };
@@ -69,29 +79,38 @@ if (isFirstLoad) {
   auth = getAuth(app);
 }
 
-// Firestore settings for unlimited timeout and better connectivity
-const firestoreSettings = {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-    cacheSizeBytes: 1024 * 1024 * 1024, // 1GB cache (effectively unlimited)
-  }),
+// Initialize Firestore once and use the same instance across hot reloads
+const db = getFirestore(app);
+
+let enableNetworkPromise: Promise<void> | null = null;
+let disableNetworkPromise: Promise<void> | null = null;
+
+export const enableFirestoreNetwork = async (): Promise<void> => {
+  if (enableNetworkPromise) {
+    return enableNetworkPromise;
+  }
+
+  enableNetworkPromise = enableNetwork(db).finally(() => {
+    enableNetworkPromise = null;
+  });
+
+  return enableNetworkPromise;
 };
 
-// Initialize Firestore with explicit settings on first load
-let db: Firestore;
-if (isFirstLoad) {
-  db = initializeFirestore(app, firestoreSettings);
-} else {
-  try {
-    db = getFirestore(app);
-  } catch {
-    db = initializeFirestore(app, firestoreSettings);
+export const disableFirestoreNetwork = async (): Promise<void> => {
+  if (disableNetworkPromise) {
+    return disableNetworkPromise;
   }
-}
 
-// Explicitly enable network to fix "offline" issues
-// Firestore sometimes starts in offline mode, especially on first load
-enableNetwork(db).catch((err) => {
+  disableNetworkPromise = disableNetwork(db).finally(() => {
+    disableNetworkPromise = null;
+  });
+
+  return disableNetworkPromise;
+};
+
+// Explicitly enable network to fix offline startup issues
+enableFirestoreNetwork().catch((err) => {
   console.log('Network enable warning (non-critical):', err);
 });
 
@@ -109,7 +128,7 @@ export const retryWithNetworkRecovery = async <T,>(
       // Wait 1 second before retry
       await new Promise(resolve => setTimeout(resolve, 1000));
       // Try to re-enable network
-      await enableNetwork(db).catch(() => {});
+      await enableFirestoreNetwork().catch(() => {});
       return retryWithNetworkRecovery(operation, retries - 1);
     }
     throw error;
@@ -118,7 +137,3 @@ export const retryWithNetworkRecovery = async <T,>(
 
 export { auth, db };
 export const storage = getStorage(app);
-
-// Network control helpers
-export const enableFirestoreNetwork = () => enableNetwork(db);
-export const disableFirestoreNetwork = () => disableNetwork(db);

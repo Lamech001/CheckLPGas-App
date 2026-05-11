@@ -1,8 +1,12 @@
 import { AppColors, AppSizes } from '@/constants/appTheme';
 import { CylinderSize, formatDistance, formatPrice, getPriceForSize, SupplierWithDistance } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RateSupplierModal, SupplierRatingBadge } from '../RateSupplierModal';
+import { SupplierDetailModal } from './SupplierDetailModal';
 
 interface SupplierCardProps {
   supplier: SupplierWithDistance;
@@ -11,7 +15,16 @@ interface SupplierCardProps {
 
 export const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, selectedSize }) => {
   const router = useRouter();
+  const [rateModalVisible, setRateModalVisible] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDetailModalVisible(true);
+  };
+
   const handleCall = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Linking.openURL(`tel:${supplier.phoneNumber}`);
   };
 
@@ -40,43 +53,70 @@ export const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, selectedSi
   };
 
   return (
-    <View style={styles.card}>
-      <View style={styles.leftContent}>
-        <View style={styles.iconContainer}>
-          <FontAwesome5 name="store" size={24} color="#FF6B35" />
-        </View>
-        <View style={styles.info}>
-          <Text style={styles.enterpriseName} numberOfLines={1}>
-            {supplier.enterpriseName}
-          </Text>
-          <Text style={styles.stockInfo}>{getStockInfo()}</Text>
-          <View style={styles.distanceRow}>
-            <FontAwesome5 name="location-arrow" size={12} color="#4CAF50" />
-            <Text style={styles.distance}>{formatDistance(supplier.distance)}</Text>
-            <View style={styles.dot} />
-            <Text style={[styles.status, { color: supplier.isOpen ? '#4CAF50' : '#f44336' }]}>
-              {supplier.isOpen ? 'Open Now' : 'Closed'}
-            </Text>
+    <>
+      <Pressable style={styles.card} onPress={handlePress} android_ripple={{ color: 'rgba(0,0,0,0.05)' }}>
+        <View style={styles.leftContent}>
+          <View style={styles.iconContainer}>
+            <FontAwesome5 name="store" size={24} color="#FF6B35" />
+          </View>
+          <View style={styles.info}>
+            <View style={styles.nameRow}>
+              <Text style={styles.enterpriseName} numberOfLines={1}>
+                {supplier.enterpriseName}
+              </Text>
+              <SupplierRatingBadge 
+                rating={supplier.rating || 0} 
+                totalRatings={supplier.totalRatings || 0}
+                size="small"
+                onPress={() => setRateModalVisible(true)}
+              />
+            </View>
+            <Text style={styles.stockInfo}>{getStockInfo()}</Text>
+            <View style={styles.distanceRow}>
+              <FontAwesome5 name="location-arrow" size={12} color="#4CAF50" />
+              <Text style={styles.distance}>{formatDistance(supplier.distance)}</Text>
+              <View style={styles.dot} />
+              <Text style={[styles.status, { color: supplier.isOpen ? '#4CAF50' : '#f44336' }]}>
+                {supplier.isOpen ? 'Open Now' : 'Closed'}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-      
-      <View style={styles.rightContent}>
-        <Text style={styles.price}>{getDisplayPrice()}</Text>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.chatButton} onPress={() => router.push({
-            pathname: '/consumer/chat',
-            params: { supplier: JSON.stringify(supplier) }
-          })}>
-            <FontAwesome5 name="comment" size={14} color="#fff" />
-            <Text style={styles.chatButtonText}>Chat</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-            <FontAwesome5 name="phone" size={14} color="#fff" />
-          </TouchableOpacity>
+        
+        <View style={styles.rightContent}>
+          <Text style={styles.price}>{getDisplayPrice()}</Text>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.rateButton} onPress={() => setRateModalVisible(true)}>
+              <FontAwesome5 name="star" size={14} color="#F59E0B" />
+              <Text style={styles.rateButtonText}>Rate</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.chatButton} onPress={() => router.push({
+              pathname: '/consumer/chat',
+              params: { supplier: JSON.stringify(supplier) }
+            })}>
+              <FontAwesome5 name="comment" size={14} color="#fff" />
+              <Text style={styles.chatButtonText}>Chat</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+              <FontAwesome5 name="phone" size={14} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </View>
+      </Pressable>
+
+      <RateSupplierModal
+        visible={rateModalVisible}
+        supplierId={supplier.uid}
+        supplierName={supplier.enterpriseName}
+        onClose={() => setRateModalVisible(false)}
+      />
+
+      <SupplierDetailModal
+        supplier={supplier}
+        visible={detailModalVisible}
+        onClose={() => setDetailModalVisible(false)}
+      />
+    </>
   );
 };
 
@@ -111,6 +151,12 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: AppSizes.spacingXS,
   },
   enterpriseName: {
     fontSize: AppSizes.fontXLarge,
@@ -155,6 +201,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  rateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  rateButtonText: {
+    color: '#F59E0B',
+    fontSize: 14,
+    fontWeight: '600',
   },
   chatButton: {
     flexDirection: 'row',

@@ -1,20 +1,20 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
 import { getCurrentLocation } from '@/services/locationService';
 import { registerSupplier, SupplierRegistrationData } from '@/services/supplierAuthService';
 import { FontAwesome5 } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -137,6 +137,9 @@ export default function SupplierSignupScreen() {
   };
 
   const handleSignup = async () => {
+    // Immediate haptic feedback for fast button response
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
     // Validation
     if (!enterpriseName.trim()) {
       Alert.alert('Error', 'Please enter your enterprise name');
@@ -200,6 +203,9 @@ export default function SupplierSignupScreen() {
       const result = await registerSupplier(supplierData);
 
       if (result.success) {
+        // Success haptic feedback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
         // Navigate to verification screen with email and role
         router.push({
           pathname: '/verify-email',
@@ -210,6 +216,9 @@ export default function SupplierSignupScreen() {
           }
         });
       } else {
+        // Error haptic feedback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        
         // Check for network errors
         const errorMsg = result.error || 'Something went wrong. Please try again.';
         if (errorMsg.includes('network') || errorMsg.includes('offline')) {
@@ -246,7 +255,6 @@ export default function SupplierSignupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <AppStatusBar backgroundColor="#000000" barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -486,7 +494,7 @@ export default function SupplierSignupScreen() {
         {/* Login Link for Existing Users */}
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>Already registered? </Text>
-          <TouchableOpacity onPress={() => router.push('/consumer/login')}>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/supplier/login', params: { role: 'supplier' } })}>
             <Text style={styles.loginLink}>Log In</Text>
           </TouchableOpacity>
         </View>

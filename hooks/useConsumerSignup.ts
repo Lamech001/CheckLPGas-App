@@ -1,4 +1,4 @@
-import { signUpWithEmail } from '@/services/authService';
+import { fastSignup } from '@/services/fastAuth';
 import { getCurrentLocation } from '@/services/locationService';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -156,32 +156,27 @@ export const useConsumerSignup = () => {
 
   // Main signup handler - creates user and sends email verification
   const signUp = async (): Promise<{ success: boolean; error?: string }> => {
-    const validation = validateForm();
-    if (!validation.isValid) {
-      return { success: false, error: validation.error };
+    if (!validateForm().isValid) {
+      return { success: false, error: 'Please fix the errors above' };
     }
 
     setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const result = await signUpWithEmail({
+      // Use fast signup for instant feedback
+      const result = await fastSignup({
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
         phoneNumber: formData.phoneNumber,
         role: 'consumer',
-        location: formData.location,
       });
 
       if (result.success) {
-        setAuthState(prev => ({ 
-          ...prev, 
-          isLoading: false, 
-          isAuthenticated: true 
-        }));
+        setAuthState(prev => ({ ...prev, isLoading: false, isAuthenticated: true }));
         return { success: true };
       } else {
-        const errorMsg = result.error || 'Signup failed';
+        const errorMsg = result.error || 'Registration failed';
         setAuthState(prev => ({ ...prev, isLoading: false, error: errorMsg }));
         return { success: false, error: errorMsg };
       }
@@ -189,8 +184,10 @@ export const useConsumerSignup = () => {
       const errorMsg = error instanceof Error ? error.message : 'An unexpected error occurred';
       setAuthState(prev => ({ ...prev, isLoading: false, error: errorMsg }));
       return { success: false, error: errorMsg };
+    } finally {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
     }
-  };
+  }
 
   const clearError = () => {
     setAuthState(prev => ({ ...prev, error: null }));
