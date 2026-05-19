@@ -1,7 +1,7 @@
 import { signInWithEmail } from '@/services/authService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,28 +16,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppStatusBar } from '@/components/AppStatusBar';
 
 export default function ConsumerLogin() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [role, setRole ]= useState<'supplier' | 'consumer'>('consumer') ;
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const pathname = usePathname();
 
-  const safeReplace = async (target: string) => {
-    if (isNavigating || pathname === target) return;
-    setIsNavigating(true);
-    try {
-      await router.replace({ pathname: target as any });
-    } catch {
-      // ignore navigation failures; login already succeeded
-    } finally {
-      setIsNavigating(false);
-    }
-  };
 
   const handleLogin = async () => {
     // Immediate haptic feedback for fast button response
@@ -74,9 +63,9 @@ export default function ConsumerLogin() {
         // Success haptic feedback
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // Navigate once to the consumer home route
+        // INSTANT NAVIGATION: Go to consumer home
         setIsLoading(false);
-        await safeReplace('/(tabs)');
+        setImmediate(() => router.replace('/(tabs)'));
         return;
       } else if (result.emailNotVerified) {
         // Email not verified - show detailed instructions
@@ -151,11 +140,16 @@ export default function ConsumerLogin() {
   };
 
   const handleSignUp = () => {
-    router.push('/consumer/signup');
+    if (role === 'supplier') {
+      router.push('/supplier/signup');
+    } else {
+      router.push('/consumer/signup');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}

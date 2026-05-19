@@ -17,6 +17,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppStatusBar } from '@/components/AppStatusBar';
 
 interface PriceInput {
   size: 6 | 13 | 19;
@@ -252,9 +253,10 @@ export default function SupplierSignupScreen() {
       setLoading(false);
     }
   };
-
+  
   return (
     <SafeAreaView style={styles.safeArea}>
+      <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -405,8 +407,8 @@ export default function SupplierSignupScreen() {
 
         {/* Gas Prices */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Gas Cylinder Refill Prices</Text>
-          <Text style={styles.sectionSubtitle}>Set your Refill prices and stock availability</Text>
+          <Text style={styles.sectionTitle}>Gas Cylinder Refilling Prices</Text>
+          <Text style={styles.sectionSubtitle}>Set your Refilling prices and stock availability</Text>
           
           {prices.map((priceItem) => {
             // Different flame sizes for different cylinder sizes

@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { auth } from '@/config/firebase';
 import { logOut } from '@/services/authService';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -98,14 +98,15 @@ export function SettingsModal({
   onToggleShopStatus,
 }: SettingsModalProps) {
   const router = useRouter();
+  const { isDarkMode, toggleTheme } = useTheme();
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
 
   // Load settings on mount
   useEffect(() => {
     loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSettings = async () => {
@@ -116,7 +117,12 @@ export function SettingsModal({
         setPushNotifications(parsed.pushNotifications ?? true);
         setEmailNotifications(parsed.emailNotifications ?? true);
         setSoundEnabled(parsed.soundEnabled ?? true);
-        setDarkMode(parsed.darkMode ?? false);
+        const storedDarkMode = parsed.darkMode ?? false;
+
+        // Ensure ThemeContext is in sync
+        if (storedDarkMode !== isDarkMode) {
+          toggleTheme();
+        }
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -129,6 +135,12 @@ export function SettingsModal({
       const settings = current ? JSON.parse(current) : {};
       settings[key] = value;
       await AsyncStorage.setItem('supplierSettings', JSON.stringify(settings));
+
+      // Also persist globally so other parts of the app (and consumer settings)
+      // can initialize consistently.
+      if (key === 'darkMode') {
+        await AsyncStorage.setItem('@darkModeEnabled', value.toString());
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
     }
@@ -170,12 +182,12 @@ export function SettingsModal({
 
   const handlePrivacyPolicy = () => {
     onClose();
-    Alert.alert('Coming Soon', 'Privacy policy is not available yet.');
+    router.push('/privacy');
   };
 
   const handleTerms = () => {
     onClose();
-    Alert.alert('Coming Soon', 'Terms & conditions are not available yet.');
+    router.push('/terms');
   };
 
   return (
@@ -281,9 +293,10 @@ export function SettingsModal({
                 title="Dark Mode"
                 subtitle="Switch to dark theme"
                 toggle
-                toggleValue={darkMode}
+                toggleValue={isDarkMode}
                 onToggle={(value) => {
-                  setDarkMode(value);
+                  // Update app theme immediately
+                  if (value !== isDarkMode) toggleTheme();
                   saveSettings('darkMode', value);
                 }}
               />
@@ -322,6 +335,43 @@ export function SettingsModal({
                 <Text style={styles.infoValue}>2024.1</Text>
               </View>
             </View>
+
+            {/* Danger Zone */}
+            <TouchableOpacity
+              style={[styles.logoutButton, { backgroundColor: '#ffebee' }]}
+              onPress={() => {
+                Alert.alert(
+                  'Delete Account',
+                  'This will permanently delete your account and data. This action cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          // Lazy import to avoid circular deps
+                          const { deleteAccount } = await import('@/services/authService');
+                          const result = await deleteAccount();
+                          if (!result.success) {
+                            Alert.alert('Error', result.error || 'Failed to delete account');
+                            return;
+                          }
+                          onClose();
+                          router.replace('/role-select');
+                        } catch (e: any) {
+                          Alert.alert('Error', e?.message || 'Failed to delete account');
+                        }
+                      },
+                    },
+                  ]
+                );
+              }}
+              activeOpacity={0.7}
+            >
+              <FontAwesome5 name="trash" size={20} color="#f44336" />
+              <Text style={styles.logoutText}>Delete Account</Text>
+            </TouchableOpacity>
 
             {/* Logout Button */}
             <TouchableOpacity

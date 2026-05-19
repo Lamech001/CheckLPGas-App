@@ -7,8 +7,10 @@ export interface Message {
   senderName: string;
   senderRole: 'consumer' | 'supplier';
   text: string;
+  originalText?: string;
   timestamp: Date;
   read: boolean;
+  isEdited?: boolean;
   attachments?: string[];
 }
 
@@ -16,6 +18,7 @@ export interface Conversation {
   id: string;
   consumerId: string;
   consumerName: string;
+  consumerPhone?: string;
   supplierId: string;
   supplierName: string;
   supplierEnterpriseName: string;
@@ -25,6 +28,8 @@ export interface Conversation {
     senderId: string;
   };
   unreadCount: number;
+  supplierUnreadCount?: number;
+  consumerUnreadCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +45,7 @@ export interface SendMessageData {
 export interface CreateConversationData {
   consumerId: string;
   consumerName: string;
+  consumerPhone?: string;
   supplierId: string;
   supplierName: string;
   supplierEnterpriseName: string;

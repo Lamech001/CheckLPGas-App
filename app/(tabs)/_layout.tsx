@@ -33,7 +33,7 @@ export default function TabLayout() {
         tabBarStyle: { display: 'none' }, // Hide bottom navigation - use hamburger menu instead
       }}>
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="chat" />
+      <Tabs.Screen name="orders" />
     </Tabs>
   );
 }

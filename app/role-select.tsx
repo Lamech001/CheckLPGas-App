@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppStatusBar } from '@/components/AppStatusBar';
 
 export default function RoleSelectScreen() {
   const router = useRouter();
@@ -54,6 +55,7 @@ export default function RoleSelectScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
       <View style={styles.content}>
         {/* Title */}
         <Text style={styles.title}>Select Your Role</Text>

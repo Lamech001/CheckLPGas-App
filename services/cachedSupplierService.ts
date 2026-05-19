@@ -5,18 +5,18 @@
 
 import { db } from '@/config/firebase';
 import {
-    batchGetCache,
-    batchSetCache,
-    CACHE_KEYS,
-    CACHE_TTL,
-    getCache,
-    getOrFetch,
-    prefetchCache,
-    removeCache,
-    setCache,
-    type CacheOptions,
+  batchGetCache,
+  batchSetCache,
+  CACHE_KEYS,
+  CACHE_TTL,
+  getCache,
+  getOrFetch,
+  prefetchCache,
+  removeCache,
+  setCache,
+  type CacheOptions,
 } from '@/services/enhancedCache';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query } from 'firebase/firestore';
 import { CylinderSize, SupplierData, SupplierWithDistance } from './types/supplier';
 
 // Re-export types
@@ -73,23 +73,14 @@ export const getSuppliersWithinRadius = async (
   return getOrFetch(
     cacheKey,
     async () => {
-      const suppliersQuery = query(
-        collection(db, 'suppliers'),
-        where('isOpen', '==', true)
-      );
+      // Fetch all suppliers and filter client-side to handle missing isOpen field
+      const suppliersQuery = query(collection(db, 'suppliers'));
       const querySnapshot = await getDocs(suppliersQuery);
-      console.log('[Suppliers] Found', querySnapshot.docs.length, 'open suppliers in Firestore');
+      
       
       const suppliers = querySnapshot.docs
         .map((doc) => {
           const data = doc.data() as SupplierData;
-          
-          // Debug: Check if location exists
-          if (!data.location || !data.location.latitude || !data.location.longitude) {
-            console.warn('[Suppliers] Missing location for supplier:', data.uid);
-            return null;
-          }
-          
           const distance = calculateDistance(
             userLat,
             userLon,
@@ -98,23 +89,19 @@ export const getSuppliersWithinRadius = async (
           );
           return { data, distance };
         })
-        .filter((item): item is { data: SupplierData; distance: number } => item !== null)
         .filter(({ data, distance }) => {
-          const isWithinRadius = distance <= effectiveRadiusKm;
-          if (!isWithinRadius) {
-            console.log('[Suppliers] Supplier', data.uid, 'outside radius. Distance:', distance.toFixed(2), 'km, max:', effectiveRadiusKm, 'km');
-          }
-          return isWithinRadius;
+          // Filter by distance
+          if (distance > effectiveRadiusKm) return false;
+          // Filter by isOpen status (default to true if field is missing)
+          return data.isOpen !== false; // Include if isOpen is true or undefined
         })
         .map(({ data, distance }) => ({ ...data, distance }))
         .sort((a, b) => a.distance - b.distance);
 
-      console.log('[Suppliers] Returning', suppliers.length, 'suppliers within', effectiveRadiusKm, 'km');
       return suppliers;
     },
     {
       ttl: CACHE_TTL.SUPPLIERS.NEARBY,
-      version: '1.0',
       backgroundRefresh: true,
       persistent: true,
       maxAge: Infinity,
@@ -132,7 +119,7 @@ export const getCachedSuppliers = async (
 ): Promise<SupplierWithDistance[] | null> => {
   const effectiveRadiusKm = Math.min(radiusKm, MAX_NEARBY_RADIUS_KM);
   const cacheKey = generateNearbyCacheKey(userLat, userLon, effectiveRadiusKm);
-  return getCache<SupplierWithDistance[]>(cacheKey, { version: '1.0', maxAge: Infinity });
+  return getCache<SupplierWithDistance[]>(cacheKey, { maxAge: Infinity });
 };
 
 /**
@@ -156,7 +143,6 @@ export const getSupplierById = async (
     },
     {
       ttl: CACHE_TTL.SUPPLIERS.DETAIL,
-      version: '1.0',
       backgroundRefresh: true,
       persistent: true,
     }
@@ -172,7 +158,7 @@ export const getSuppliersByIds = async (
   const cacheKeys = supplierIds.map(id => CACHE_KEYS.SUPPLIERS.DETAIL(id));
   
   // Batch read from cache
-  const cachedResults = await batchGetCache<SupplierData>(cacheKeys, { version: '1.0' });
+  const cachedResults = await batchGetCache<SupplierData>(cacheKeys);
   
   // Find missing suppliers
   const missingIds: string[] = [];
@@ -212,7 +198,7 @@ export const getSuppliersByIds = async (
       .map(({ id, data }) => ({
         key: CACHE_KEYS.SUPPLIERS.DETAIL(id),
         data,
-        options: { ttl: CACHE_TTL.SUPPLIERS.DETAIL, version: '1.0' } as CacheOptions,
+        options: { ttl: CACHE_TTL.SUPPLIERS.DETAIL } as CacheOptions,
       }));
     
     await batchSetCache(cacheEntries);
@@ -237,34 +223,29 @@ export const subscribeToSuppliers = (
   let initialCallbackFired = false;
 
   // Get cached data first for immediate display
-  getCache<SupplierWithDistance[]>(cacheKey, { version: '1.0' }).then(cached => {
-    if (cached && !initialCallbackFired) {
+  const cachedPromise = getCache<SupplierWithDistance[]>(cacheKey);
+
+  // Consume the cached result for the initial UI paint.
+  cachedPromise.then((cached) => {
+    // Use the value even if empty/undefined; only suppress duplicate initial fires.
+    if (!initialCallbackFired && cached) {
       callback(cached, true);
     }
   });
 
+
+
   // Set up real-time listener
-  const suppliersQuery = query(
-    collection(db, 'suppliers'),
-    where('isOpen', '==', true)
-  );
+  const suppliersQuery = query(collection(db, 'suppliers'));
   
   return onSnapshot(
     suppliersQuery,
     (snapshot) => {
       initialCallbackFired = true;
-      console.log('[Suppliers] Real-time listener: Found', snapshot.docs.length, 'open suppliers');
       
       const suppliers = snapshot.docs
         .map((doc) => {
           const data = doc.data() as SupplierData;
-          
-          // Debug: Check if location exists
-          if (!data.location || !data.location.latitude || !data.location.longitude) {
-            console.warn('[Suppliers] Missing location for supplier:', data.uid);
-            return null;
-          }
-          
           const distance = calculateDistance(
             userLat,
             userLon,
@@ -273,17 +254,18 @@ export const subscribeToSuppliers = (
           );
           return { data, distance };
         })
-        .filter((item): item is { data: SupplierData; distance: number } => item !== null)
-        .filter(({ data, distance }) => distance <= effectiveRadiusKm)
+        .filter(({ data, distance }) => {
+          // Filter by distance
+          if (distance > effectiveRadiusKm) return false;
+          // Filter by isOpen status (default to true if field is missing)
+          return data.isOpen !== false; // Include if isOpen is true or undefined
+        })
         .map(({ data, distance }) => ({ ...data, distance }))
         .sort((a, b) => a.distance - b.distance);
-
-      console.log('[Suppliers] Real-time: Returning', suppliers.length, 'suppliers within range');
 
       // Update cache with fresh data
       setCache(cacheKey, suppliers, {
         ttl: CACHE_TTL.SUPPLIERS.NEARBY,
-        version: '1.0',
         persistent: true,
       }).catch(() => {});
 
@@ -308,7 +290,7 @@ export const subscribeToSupplier = (
   let initialCallbackFired = false;
 
   // Get cached data first
-  getCache<SupplierData>(cacheKey, { version: '1.0' }).then(cached => {
+  getCache<SupplierData>(cacheKey).then(cached => {
     if (cached && !initialCallbackFired) {
       callback(cached, true);
     }
@@ -328,7 +310,6 @@ export const subscribeToSupplier = (
         // Update cache
         setCache(cacheKey, data, {
           ttl: CACHE_TTL.SUPPLIERS.DETAIL,
-          version: '1.0',
           persistent: true,
         }).catch(() => {});
 
@@ -390,10 +371,8 @@ export const prefetchSuppliers = async (
   await prefetchCache(
     cacheKey,
     async () => {
-      const suppliersQuery = query(
-        collection(db, 'suppliers'),
-        where('isOpen', '==', true)
-      );
+      // Fetch all suppliers and filter client-side to handle missing isOpen field
+      const suppliersQuery = query(collection(db, 'suppliers'));
       const querySnapshot = await getDocs(suppliersQuery);
       
       return querySnapshot.docs
@@ -407,12 +386,16 @@ export const prefetchSuppliers = async (
           );
           return { ...data, distance };
         })
-        .filter((s) => s.distance <= effectiveRadiusKm)
+        .filter((s) => {
+          // Filter by distance
+          if (s.distance > effectiveRadiusKm) return false;
+          // Filter by isOpen status (default to true if field is missing)
+          return s.isOpen !== false; // Include if isOpen is true or undefined
+        })
         .sort((a, b) => a.distance - b.distance);
     },
     {
       ttl: CACHE_TTL.SUPPLIERS.NEARBY,
-      version: '1.0',
       persistent: true,
     }
   );
@@ -434,7 +417,6 @@ export const prefetchSupplierDetails = async (
       },
       {
         ttl: CACHE_TTL.SUPPLIERS.DETAIL,
-        version: '1.0',
         persistent: true,
       }
     )
@@ -498,7 +480,7 @@ const getAllSupplierCacheKeys = async (): Promise<string[]> => {
 
 // Favorites management with caching
 export const getFavoriteSuppliers = async (): Promise<string[]> => {
-  const cached = await getCache<string[]>(CACHE_KEYS.SUPPLIERS.FAVORITES, { version: '1.0' });
+  const cached = await getCache<string[]>(CACHE_KEYS.SUPPLIERS.FAVORITES);
   return cached ?? [];
 };
 
@@ -508,7 +490,6 @@ export const addFavoriteSupplier = async (supplierId: string): Promise<void> => 
     const newFavorites = [...favorites, supplierId];
     await setCache(CACHE_KEYS.SUPPLIERS.FAVORITES, newFavorites, {
       ttl: CACHE_TTL.SUPPLIERS.FAVORITES,
-      version: '1.0',
       persistent: true,
     });
   }
@@ -519,7 +500,6 @@ export const removeFavoriteSupplier = async (supplierId: string): Promise<void> 
   const newFavorites = favorites.filter(id => id !== supplierId);
   await setCache(CACHE_KEYS.SUPPLIERS.FAVORITES, newFavorites, {
     ttl: CACHE_TTL.SUPPLIERS.FAVORITES,
-    version: '1.0',
     persistent: true,
   });
 };

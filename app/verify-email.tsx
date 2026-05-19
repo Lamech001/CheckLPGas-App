@@ -14,6 +14,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppStatusBar } from '@/components/AppStatusBar';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
@@ -152,6 +153,7 @@ export default function VerifyEmailScreen() {
   if (isVerifying) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent]}>
+        <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
         <ActivityIndicator size="large" color="#1976D2" />
         <Text style={styles.verifyingText}>Verifying your email...</Text>
       </SafeAreaView>
@@ -161,6 +163,7 @@ export default function VerifyEmailScreen() {
   if (isVerified) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent]}>
+        <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
         <View style={styles.successIconCircle}>
           <FontAwesome5 name="check" size={48} color="#fff" />
         </View>
@@ -172,6 +175,7 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
       
       <View style={styles.content}>
         {/* Success Icon */}

@@ -4,15 +4,18 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { deleteAccount } from '@/services/authService';
+import { useRouter } from 'expo-router';
 import {
-    Dimensions,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -23,37 +26,64 @@ interface SettingsPanelProps {
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }) => {
+  const router = useRouter();
   const { isDarkMode, toggleTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
   useEffect(() => {
     loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSettings = async () => {
     try {
       const notifications = await AsyncStorage.getItem('@notificationsEnabled');
       const location = await AsyncStorage.getItem('@locationEnabled');
-      
+
+      // Note: dark mode is controlled by ThemeContext; we only read AsyncStorage
+      // so the rest of the app can initialize consistently.
+      const darkMode = await AsyncStorage.getItem('@darkModeEnabled');
+
       if (notifications !== null) setNotificationsEnabled(notifications === 'true');
       if (location !== null) setLocationEnabled(location === 'true');
+
+      if (darkMode !== null) {
+        // ThemeContext owns the actual state; avoid infinite loops by only toggling
+        // when the stored value differs from the current theme.
+        const stored = darkMode === 'true';
+        if (stored !== isDarkMode) {
+          toggleTheme();
+        }
+      }
     } catch {
       // Silently handle
     }
   };
 
   const handleToggleDarkMode = async (value: boolean) => {
+    // Update app theme immediately
     toggleTheme();
-    
+
+    // Persist locally for fast startup
+    try {
+      await AsyncStorage.setItem('@darkModeEnabled', value.toString());
+    } catch {
+      // Silently handle
+    }
+
     // Save to Firestore for sync across devices
     const user = auth.currentUser;
     if (user) {
       try {
-        await setDoc(doc(db, 'users', user.uid), {
-          preferences: { darkMode: value },
-          updatedAt: new Date(),
-        }, { merge: true });
+        await setDoc(
+          doc(db, 'users', user.uid),
+          {
+            preferences: { darkMode: value },
+            updatedAt: new Date(),
+          },
+          { merge: true }
+        );
       } catch {
         // Silently handle
       }
@@ -162,9 +192,63 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
                 <FontAwesome5 name="info-circle" size={20} color="#1976D2" style={styles.aboutIcon} />
                 <View>
                   <Text style={styles.aboutTitle}>GasAround Kenya</Text>
-                  <Text style={styles.aboutVersion}>Version 1.0.0</Text>
+                  <Text style={styles.aboutVersion}>Version 1.0.1</Text>
                 </View>
               </View>
+
+              <TouchableOpacity
+                style={styles.policyRow}
+                onPress={() => router.push('/privacy')}
+              >
+                <FontAwesome5 name="file-contract" size={18} color="#1976D2" />
+                <Text style={styles.policyRowText}>Privacy Policy</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.policyRow}
+                onPress={() => router.push('/terms')}
+              >
+                <FontAwesome5 name="file-contract" size={18} color="#1976D2" />
+                <Text style={styles.policyRowText}>Terms of Service</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Danger Zone */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Danger Zone</Text>
+
+              <TouchableOpacity
+                style={styles.deleteAccountRow}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete account',
+                    'This will permanently delete your account and data. This action cannot be undone.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            const result = await deleteAccount();
+                            if (!result.success) {
+                              Alert.alert('Error', result.error || 'Failed to delete account');
+                              return;
+                            }
+                            onClose();
+                            router.replace('/role-select');
+                          } catch (e: any) {
+                            Alert.alert('Error', e?.message || 'Failed to delete account');
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <FontAwesome5 name="trash" size={18} color="#f44336" />
+                <Text style={styles.deleteAccountText}>Delete Account</Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
         </View>
@@ -264,5 +348,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 2,
+  },
+  deleteAccountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#ffebee',
+    justifyContent: 'center',
+  },
+  deleteAccountText: {
+    color: '#f44336',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  policyRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#f5f8ff',
+    justifyContent: 'flex-start',
+  },
+  policyRowText: {
+    color: '#1976D2',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

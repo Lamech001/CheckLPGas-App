@@ -10,7 +10,7 @@ import {
 import type { SupplierData } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { User } from 'firebase/auth';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,6 +24,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppStatusBar } from '@/components/AppStatusBar';
 
 interface PriceData {
   size: 6 | 13 | 19;
@@ -47,15 +48,22 @@ export default function SupplierDashboardScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Check current auth state once when dashboard mounts
+  // Listen for auth state changes
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    setUser(currentUser);
-    setAuthLoading(false);
+    let isActive = true;
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (!isActive) return;
+      setUser(currentUser);
+      setAuthLoading(false);
+      if (!currentUser) {
+        router.replace('/role-select');
+      }
+    });
 
-    if (!currentUser) {
-      router.replace('/role-select');
-    }
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, [router]);
 
   useEffect(() => {
@@ -210,6 +218,7 @@ export default function SupplierDashboardScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
         <ActivityIndicator size="large" color="#1976D2" />
         <Text style={styles.loadingText}>Loading your dashboard...</Text>
       </SafeAreaView>
@@ -274,6 +283,7 @@ export default function SupplierDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
@@ -538,6 +548,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  headerContent: {
+   
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -583,10 +596,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-  },
-  headerContent: {
-    flex: 1,
-    paddingRight: 12,
   },
   headerTitle: {
     fontSize: 20,

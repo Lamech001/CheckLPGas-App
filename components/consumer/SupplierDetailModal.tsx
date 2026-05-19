@@ -39,7 +39,7 @@ export const SupplierDetailModal: React.FC<SupplierDetailModalProps> = ({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onClose();
     router.push({
-      pathname: '/consumer/chat',
+      pathname: '/consumer/order',
       params: { supplier: JSON.stringify(supplier) },
     });
   };
@@ -167,8 +167,8 @@ export const SupplierDetailModal: React.FC<SupplierDetailModalProps> = ({
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
               <TouchableOpacity style={styles.chatButton} onPress={handleChat}>
-                <FontAwesome5 name="comment" size={20} color="#fff" />
-                <Text style={styles.chatButtonText}>Chat with Supplier</Text>
+                <FontAwesome5 name="shopping-bag" size={20} color="#fff" />
+                <Text style={styles.chatButtonText}>Place Order</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.callButton} onPress={handleCall}>

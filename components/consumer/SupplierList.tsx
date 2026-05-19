@@ -2,28 +2,39 @@ import { AppColors, AppSizes } from '@/constants/appTheme';
 import { filterByCylinderSize } from '@/services/supplierService';
 import { CylinderSize, SupplierWithDistance } from '@/services/types/supplier';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { FilterBar } from './FilterBar';
 import { SupplierCard } from './SupplierCard';
 
 interface SupplierListProps {
   suppliers: SupplierWithDistance[];
+  loading?: boolean;
 }
 
-export const SupplierList: React.FC<SupplierListProps> = ({ suppliers }) => {
+export const SupplierList: React.FC<SupplierListProps> = ({ suppliers, loading = false }) => {
   const [selectedSize, setSelectedSize] = useState<CylinderSize | 'all'>('all');
 
-  const filteredSuppliers = filterByCylinderSize(suppliers, selectedSize);
+  // Ensure only suppliers that are actually open are visible in the consumer dashboard.
+  // (Distance+open are expected to be handled by the hook query, but filtering again here prevents
+  // race conditions where a just-registered supplier may appear before isOpen/location settle.)
+  const openSuppliers = suppliers.filter((s) => s.isOpen === true);
+
+  const filteredSuppliers = filterByCylinderSize(openSuppliers, selectedSize);
 
   return (
     <View style={styles.container}>
       <FilterBar selectedSize={selectedSize} onSelectSize={setSelectedSize} />
       
-      {filteredSuppliers.length === 0 ? (
+      {loading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color={AppColors.primary} />
+          <Text style={styles.loadingText}>Loading suppliers...</Text>
+        </View>
+      ) : filteredSuppliers.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>
             No suppliers found with {selectedSize === 'all' ? 'any' : selectedSize + 'kg'} cylinders in your area.
-            Tell them to join GasAround!
+            Ask them to join GasAround!
           </Text>
         </View>
       ) : (
@@ -44,6 +55,18 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: AppSizes.spacingSmall,
+  },
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: AppSizes.spacingXXLarge,
+  },
+  loadingText: {
+    fontSize: AppSizes.fontMedium,
+    color: AppColors.textSecondary,
+    textAlign: 'center',
+    marginTop: AppSizes.spacingMedium,
   },
   emptyState: {
     flex: 1,

@@ -91,11 +91,11 @@ export const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, selectedSi
               <Text style={styles.rateButtonText}>Rate</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.chatButton} onPress={() => router.push({
-              pathname: '/consumer/chat',
+              pathname: '/consumer/order',
               params: { supplier: JSON.stringify(supplier) }
             })}>
-              <FontAwesome5 name="comment" size={14} color="#fff" />
-              <Text style={styles.chatButtonText}>Chat</Text>
+              <FontAwesome5 name="shopping-bag" size={14} color="#fff" />
+              <Text style={styles.chatButtonText}>Order</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.callButton} onPress={handleCall}>
               <FontAwesome5 name="phone" size={14} color="#fff" />

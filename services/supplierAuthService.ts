@@ -88,12 +88,25 @@ export const registerSupplier = async (
     while (!docSaved && saveAttempts < maxAttempts) {
       try {
         saveAttempts++;
-        console.log(`[SupplierAuth] Saving supplier document (attempt ${saveAttempts})...`);
+        console.log(`[SupplierAuth] Saving supplier document (attempt ${saveAttempts}) for UID: ${user.uid}`);
+        console.log('[SupplierAuth] Document path:', supplierDocRef.path);
+        console.log('[SupplierAuth] Document data:', JSON.stringify(supplierData, null, 2));
+        
         await setDoc(supplierDocRef, supplierData);
         docSaved = true;
         console.log('[SupplierAuth] Supplier document created successfully for:', user.uid);
+        
+        // Verify the document was created
+        const verifyDoc = await getDoc(supplierDocRef);
+        if (verifyDoc.exists()) {
+          console.log('[SupplierAuth] Document verification successful');
+        } else {
+          console.error('[SupplierAuth] Document verification failed - document not found after creation');
+          throw new Error('Document creation verification failed');
+        }
       } catch (docError: any) {
         console.error(`[SupplierAuth] Document save attempt ${saveAttempts} failed:`, docError.message);
+        console.error('[SupplierAuth] Full error:', docError);
         if (saveAttempts >= maxAttempts) {
           throw new Error(`Failed to save supplier data after ${maxAttempts} attempts: ${docError.message}`);
         }
@@ -235,16 +248,34 @@ export const getSupplierData = async (
 
   const fetchData = async (attempt: number): Promise<{ success: boolean; data?: SupplierData; error?: string }> => {
     try {
-      console.log('[SupplierAuth] Fetching data for:', supplierId);
+      console.log('[SupplierAuth] Fetching data for:', supplierId, 'Attempt:', attempt + 1);
       const supplierRef = doc(db, 'suppliers', supplierId);
+      console.log('[SupplierAuth] Document path:', supplierRef.path);
+      
       const docSnap = await getDoc(supplierRef);
-
+      console.log('[SupplierAuth] Document exists:', docSnap.exists());
+      
       if (docSnap.exists()) {
         const data = docSnap.data() as SupplierData;
+        console.log('[SupplierAuth] Raw document data:', JSON.stringify(data, null, 2));
         console.log('[SupplierAuth] Data found for:', supplierId, 'Name:', data.enterpriseName);
         return { success: true, data };
       } else {
         console.warn('[SupplierAuth] No document found for:', supplierId, 'Path:', supplierRef.path);
+        
+        // Try to list all documents in suppliers collection to debug
+        try {
+          const { collection, getDocs } = await import('firebase/firestore');
+          const suppliersRef = collection(db, 'suppliers');
+          const querySnapshot = await getDocs(suppliersRef);
+          console.log('[SupplierAuth] Total suppliers in collection:', querySnapshot.size);
+          querySnapshot.forEach((doc) => {
+            console.log('[SupplierAuth] Existing supplier ID:', doc.id);
+          });
+        } catch (listError) {
+          console.error('[SupplierAuth] Error listing suppliers:', listError);
+        }
+        
         console.log('[SupplierAuth] Check if supplier has completed registration or if there is a Firestore permissions issue.');
         return { success: false, error: 'Supplier not found. Please complete registration.' };
       }

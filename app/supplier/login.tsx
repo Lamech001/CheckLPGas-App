@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppStatusBar } from '@/components/AppStatusBar';
 
 export default function SupplierLogin() {
   const router = useRouter();
@@ -123,6 +124,7 @@ export default function SupplierLogin() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}

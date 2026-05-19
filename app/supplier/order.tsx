@@ -21,7 +21,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 type ChatMessage = Message & { pending?: boolean };
 
-export default function SupplierChatScreen() {
+export default function SupplierOrderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const conversationId = params.conversationId as string;
@@ -43,7 +43,7 @@ export default function SupplierChatScreen() {
       return;
     }
 
-    // Mark messages as read when entering chat
+    // Mark messages as read when entering order conversation
     if (currentUser) {
       markMessagesAsRead(conversationId, currentUser.uid);
     }
@@ -229,7 +229,7 @@ export default function SupplierChatScreen() {
         <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>Please sign in to chat</Text>
+          <Text style={styles.emptyText}>Please sign in to manage orders</Text>
           <TouchableOpacity style={styles.signInButton} onPress={() => router.push({ pathname: '/consumer/login', params: { role: 'supplier' } })}>
             <Text style={styles.signInButtonText}>Sign In</Text>
           </TouchableOpacity>
@@ -254,7 +254,7 @@ export default function SupplierChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>{consumerName}</Text>
-          <Text style={styles.headerSubtitle}>Order chat</Text>
+          <Text style={styles.headerSubtitle}>Order conversation</Text>
           <Text style={styles.headerHelper}>
             Reply with availability, price, and delivery time for this gas order.
           </Text>

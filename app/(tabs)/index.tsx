@@ -1,3 +1,4 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { NotificationsPanel } from '@/components/consumer/NotificationsPanel';
 import { SideMenu } from '@/components/consumer/SideMenu';
 import { SupplierList } from '@/components/consumer/SupplierList';
@@ -99,7 +100,7 @@ export default function ConsumerHomeScreen() {
       const checkRoleAndRedirect = async () => {
         const user = auth.currentUser;
         if (!user) return;
-        
+
         try {
           // Check global hint first for instant response
           // @ts-ignore
@@ -108,7 +109,7 @@ export default function ConsumerHomeScreen() {
             router.replace('/supplier/dashboard');
             return;
           }
-          
+
           // Fallback to Firestore check
           const roleResult = await getUserRole(user.uid);
           if (roleResult.role === 'supplier') {
@@ -118,12 +119,13 @@ export default function ConsumerHomeScreen() {
           // Ignore errors - stay on consumer page
         }
       };
-      
+
       checkRoleAndRedirect();
-    }, 200); // Quick 200ms delay for instant UI render
-    
+    }, 200);
+
     return () => clearTimeout(timeoutId);
-  }, []);
+  }, [router]);
+
 
   // Load location - cached first for instant display, then fresh
   useEffect(() => {
@@ -178,6 +180,7 @@ export default function ConsumerHomeScreen() {
   if (showLoading) {
     return (
       <View style={styles.loadingContainer}>
+        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
         <ActivityIndicator size="large" color={AppColors.primary} />
         <Text style={styles.loadingText}>Finding gas suppliers near you...</Text>
       </View>
@@ -187,6 +190,7 @@ export default function ConsumerHomeScreen() {
   if (error) {
     return (
       <View style={styles.errorContainer}>
+        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
         <FontAwesome5 name="exclamation-circle" size={48} color={AppColors.errorLight} />
         <Text style={styles.errorText}>{error.message}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
@@ -199,6 +203,7 @@ export default function ConsumerHomeScreen() {
   if (!userLocation) {
     return (
       <View style={styles.errorContainer}>
+        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
         <Text style={styles.errorText}>Location not available</Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
           <Text style={styles.retryButtonText}>Retry</Text>
@@ -209,24 +214,19 @@ export default function ConsumerHomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
-            <FontAwesome5 name="bars" size={24} color={AppColors.primary} />
-          </TouchableOpacity>
-          <Text style={styles.logo}>{AppConstants.appName}</Text>
-          <TouchableOpacity style={styles.notificationButton} onPress={() => setNotificationsVisible(true)}>
-            <FontAwesome5 name="bell" size={20} color={AppColors.primary} />
-            {unreadNotifications > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadNotifications > 99 ? '99+' : unreadNotifications}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.greeting}>Hello, {userName || 'Guest'}!</Text>
-        <Text style={styles.subtitle}>{AppConstants.appTagline}</Text>
+      {/* Minimal header with just buttons */}
+      <View style={styles.minimalHeader}>
+        <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
+          <FontAwesome5 name="bars" size={24} color={AppColors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.notificationButton} onPress={() => setNotificationsVisible(true)}>
+          <FontAwesome5 name="bell" size={20} color={AppColors.primary} />
+          {unreadNotifications > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadNotifications > 99 ? '99+' : unreadNotifications}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -269,7 +269,7 @@ export default function ConsumerHomeScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-          <SupplierList suppliers={suppliers || []} />
+          <SupplierList suppliers={suppliers || []} loading={suppliersLoading} />
         </View>
       </ScrollView>
 
@@ -344,6 +344,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: AppSizes.spacingMedium,
+  },
+  minimalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: AppSizes.spacingLarge,
+    paddingTop: 60,
+    paddingBottom: AppSizes.spacingSmall,
+    backgroundColor: AppColors.background,
   },
   menuButton: {
     padding: AppSizes.spacingSmall,

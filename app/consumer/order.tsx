@@ -1,7 +1,8 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { auth } from '@/config/firebase';
-import { markMessagesAsRead, sendMessage, subscribeToMessages, editMessage, deleteMessage } from '@/services/chatService';
+import { deleteMessage, editMessage, getOrCreateConversation, markMessagesAsRead, sendMessage, subscribeToMessages } from '@/services/chatService';
 import { formatChatDate, Message } from '@/services/types/chat';
+import { SupplierWithDistance } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -21,29 +22,71 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 type ChatMessage = Message & { pending?: boolean };
 
-export default function SupplierChatScreen() {
+export default function OrderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const conversationId = params.conversationId as string;
-  const consumerName = params.consumerName as string || 'Customer';
-  const consumerPhone = params.consumerPhone as string || '';
+  const supplierData = params.supplier ? JSON.parse(params.supplier as string) as SupplierWithDistance : null;
+  const conversationIdParam = params.conversationId as string | undefined;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [conversationId, setConversationId] = useState<string>(conversationIdParam || '');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
   const currentUser = auth.currentUser;
 
-  useEffect(() => {
-    if (!conversationId) {
+  const initConversation = async (): Promise<string | null> => {
+    if (!currentUser || !supplierData) {
       setLoading(false);
-      return;
+      return null;
     }
 
-    // Mark messages as read when entering chat
+    if (conversationId) {
+      setLoading(false);
+      return conversationId;
+    }
+
+    setIsCreatingConversation(true);
+
+    const conversationPayload: any = {
+      consumerId: currentUser.uid,
+      consumerName: currentUser.displayName || 'Consumer',
+      supplierId: supplierData.uid,
+      supplierName: supplierData.fullName || supplierData.enterpriseName,
+      supplierEnterpriseName: supplierData.enterpriseName,
+    };
+
+    if (currentUser.phoneNumber) {
+      conversationPayload.consumerPhone = currentUser.phoneNumber;
+    }
+
+    const result = await getOrCreateConversation(conversationPayload);
+    setIsCreatingConversation(false);
+
+    if (result.success && result.conversationId) {
+      setConversationId(result.conversationId);
+      setLoading(false);
+      return result.conversationId;
+    }
+
+    setLoading(false);
+    Alert.alert('Error', 'Failed to start order thread');
+    return null;
+  };
+
+  useEffect(() => {
+    initConversation();
+  }, [currentUser, supplierData]);
+
+  // Subscribe to messages
+  useEffect(() => {
+    if (!conversationId) return;
+
+    // Mark messages as read when entering order conversation
     if (currentUser) {
       markMessagesAsRead(conversationId, currentUser.uid);
     }
@@ -60,7 +103,6 @@ export default function SupplierChatScreen() {
         );
         return [...newMessages, ...dedupedPending];
       });
-      setLoading(false);
       // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -71,15 +113,16 @@ export default function SupplierChatScreen() {
   }, [conversationId, currentUser]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || !currentUser || !conversationId) return;
+    if (!inputText.trim() || !currentUser) return;
 
     const text = inputText.trim();
+    const id = `pending-${Date.now()}`;
     const optimisticMessage: ChatMessage = {
-      id: `pending-${Date.now()}`,
-      conversationId,
+      id,
+      conversationId: conversationId || id,
       senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Supplier',
-      senderRole: 'supplier',
+      senderName: currentUser.displayName || 'Consumer',
+      senderRole: 'consumer',
       text,
       timestamp: new Date(),
       read: true,
@@ -90,17 +133,37 @@ export default function SupplierChatScreen() {
     setInputText('');
     flatListRef.current?.scrollToEnd({ animated: true });
 
+    const createdConversationId = conversationId || await initConversation();
+    if (!createdConversationId) {
+      setMessages((prev) => prev.filter((message) => message.id !== optimisticMessage.id));
+      return;
+    }
+
     const result = await sendMessage({
-      conversationId,
+      conversationId: createdConversationId,
       senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Supplier',
-      senderRole: 'supplier',
+      senderName: currentUser.displayName || 'Consumer',
+      senderRole: 'consumer',
       text,
     });
 
     if (!result.success) {
       setMessages((prev) => prev.filter((message) => message.id !== optimisticMessage.id));
       Alert.alert('Error', 'Failed to send message');
+    }
+  };
+
+  const handleSendEdit = async () => {
+    if (!inputText.trim() || !currentUser || !conversationId) return;
+    if (!editingMessageId) return handleSend();
+
+    const text = inputText.trim();
+    setInputText('');
+    setEditingMessageId(null);
+
+    const result = await editMessage(editingMessageId, text);
+    if (!result.success) {
+      Alert.alert('Error', result.error || 'Failed to edit message');
     }
   };
 
@@ -145,17 +208,17 @@ export default function SupplierChatScreen() {
     ]);
   };
 
-  const handleSendEdit = async () => {
-    if (!inputText.trim() || !currentUser || !conversationId) return;
-    if (!editingMessageId) return handleSend();
+  const handleCall = async () => {
+    if (!supplierData?.phoneNumber) return;
 
-    const text = inputText.trim();
-    setInputText('');
-    setEditingMessageId(null);
-
-    const result = await editMessage(editingMessageId, text);
-    if (!result.success) {
-      Alert.alert('Error', result.error || 'Failed to edit message');
+    try {
+      Linking.openURL(`tel:${supplierData.phoneNumber}`);
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        'Unable to open phone dialer.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -170,7 +233,7 @@ export default function SupplierChatScreen() {
       >
         {!isMe && (
           <View style={styles.avatar}>
-            <FontAwesome5 name="user" size={14} color="#fff" />
+            <FontAwesome5 name="store" size={14} color="#fff" />
           </View>
         )}
         <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
@@ -185,58 +248,29 @@ export default function SupplierChatScreen() {
         </View>
         {isMe && (
           <View style={[styles.avatar, styles.myAvatar]}>
-            <FontAwesome5 name="store" size={14} color="#fff" />
+            <FontAwesome5 name="user" size={14} color="#fff" />
           </View>
         )}
       </TouchableOpacity>
     );
   };
 
-  const handleCall = async () => {
-    if (!consumerPhone) return;
-
-    try {
-      // Request phone call permission (expo-permissions)
-      const { status } = await (async () => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const Permissions = require('expo-permissions');
-          return Permissions.askAsync(Permissions.CALL_PHONE);
-        } catch {
-          // If expo-permissions is unavailable, treat as denied and fall back to opening the dialer
-          return { status: 'denied' };
-        }
-      })();
-
-      if (status === 'granted') {
-        Linking.openURL(`tel:${consumerPhone}`);
-      } else {
-        Alert.alert(
-          'Permission Required',
-          'Phone call permission is required to call customers. Please enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error) {
-      // Fallback for devices that don't support permission checking
-      Linking.openURL(`tel:${consumerPhone}`);
-    }
-  };
-
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>Please sign in to chat</Text>
-          <TouchableOpacity style={styles.signInButton} onPress={() => router.push({ pathname: '/consumer/login', params: { role: 'supplier' } })}>
+          <Text style={styles.emptyText}>Please sign in to place orders</Text>
+          <TouchableOpacity style={styles.signInButton} onPress={() => router.push('/consumer/login')}>
             <Text style={styles.signInButtonText}>Sign In</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
+
+  const orderTitle = supplierData?.enterpriseName || 'Order';
 
   return (
     <KeyboardAvoidingView
@@ -245,7 +279,7 @@ export default function SupplierChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 120 : 100}
     >
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -253,23 +287,23 @@ export default function SupplierChatScreen() {
           <FontAwesome5 name="arrow-left" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{consumerName}</Text>
-          <Text style={styles.headerSubtitle}>Order chat</Text>
+          <Text style={styles.headerTitle}>{orderTitle}</Text>
+          <Text style={styles.headerSubtitle}>
+            {supplierData?.isOpen ? 'Place order with supplier' : 'Supplier offline'}
+          </Text>
           <Text style={styles.headerHelper}>
-            Reply with availability, price, and delivery time for this gas order.
+            Send your gas order details: cylinder size, quantity, and delivery address.
           </Text>
         </View>
-        {consumerPhone && (
-          <TouchableOpacity style={styles.callBtn} onPress={handleCall}>
-            <FontAwesome5 name="phone" size={18} color="#fff" />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.callBtn} onPress={handleCall}>
+          <FontAwesome5 name="phone" size={18} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       {/* Messages */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading order conversation...</Text>
+          <Text style={styles.loadingText}>Starting conversation...</Text>
         </View>
       ) : (
         <FlatList
@@ -301,16 +335,17 @@ export default function SupplierChatScreen() {
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Reply with order availability, price, and delivery ETA..."
+            placeholder={isCreatingConversation ? 'Creating order thread...' : 'Describe your gas order, quantity, and delivery details...'}
             value={inputText}
             onChangeText={setInputText}
             multiline
+            editable={!isCreatingConversation}
             maxLength={500}
           />
           <TouchableOpacity
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+            style={[styles.sendButton, (!inputText.trim() || isCreatingConversation) && styles.sendButtonDisabled]}
             onPress={editingMessageId ? handleSendEdit : handleSend}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || isCreatingConversation}
           >
             <FontAwesome5 name={editingMessageId ? 'check' : 'paper-plane'} size={20} color="#fff" />
           </TouchableOpacity>
@@ -329,7 +364,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#007AFF',
     paddingHorizontal: 16,
     paddingVertical: 16,
     paddingTop: 50,
@@ -417,7 +452,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -428,7 +463,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   myAvatar: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#34C759',
     marginLeft: 12,
     marginRight: 0,
   },
@@ -443,7 +478,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   myBubble: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#34C759',
     borderBottomRightRadius: 6,
   },
   theirBubble: {
@@ -454,7 +489,7 @@ const styles = StyleSheet.create({
   },
   senderName: {
     fontSize: 12,
-    color: '#FF6B35',
+    color: '#007AFF',
     fontWeight: '600',
     marginBottom: 6,
   },
@@ -513,7 +548,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#34C759',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -562,7 +597,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   signInButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#34C759',
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 12,

@@ -84,6 +84,7 @@ export const subscribeToSuppliers = (
     
     callback(suppliers);
   }, (error) => {
+    console.error('Error subscribing to suppliers:', error);
     // Silently handle subscription error
     callback([]);
   });

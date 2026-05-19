@@ -2,8 +2,11 @@ import { db } from '@/config/firebase';
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
+  getDoc,
+  increment,
   onSnapshot,
   orderBy,
   query,
@@ -12,7 +15,6 @@ import {
   updateDoc,
   where,
   limit,
-  getDoc,
 } from 'firebase/firestore';
 import { Conversation, CreateConversationData, Message, SendMessageData } from './types/chat';
 
@@ -43,9 +45,15 @@ export const createConversation = async (
 
     // Create new conversation
     const conversationRef = doc(collection(db, CONVERSATIONS_COLLECTION));
+    // Filter out undefined values to prevent Firestore errors
+    const filteredData = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined)
+    );
     const conversationData = {
-      ...data,
+      ...filteredData,
       unreadCount: 0,
+      supplierUnreadCount: 0,
+      consumerUnreadCount: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -81,8 +89,10 @@ export const sendMessage = async (
       read: false,
     });
 
-    // Update conversation last message
+    // Update conversation last message and unread counter for the recipient
     const conversationRef = doc(db, CONVERSATIONS_COLLECTION, data.conversationId);
+    const recipientUnreadField =
+      data.senderRole === 'consumer' ? 'supplierUnreadCount' : 'consumerUnreadCount';
     await updateDoc(conversationRef, {
       lastMessage: {
         text: data.text,
@@ -90,6 +100,7 @@ export const sendMessage = async (
         senderId: data.senderId,
       },
       updatedAt: serverTimestamp(),
+      [recipientUnreadField]: increment(1),
     });
 
     return { success: true, messageId: messageRef.id };
@@ -157,6 +168,7 @@ export const getConsumerConversations = async (
       conversations.push({
         id: doc.id,
         ...data,
+        unreadCount: data.consumerUnreadCount ?? data.unreadCount ?? 0,
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
           timestamp: data.lastMessage.timestamp?.toDate() || new Date(),
@@ -195,6 +207,7 @@ export const getSupplierConversations = async (
       conversations.push({
         id: doc.id,
         ...data,
+        unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
           timestamp: data.lastMessage.timestamp?.toDate() || new Date(),
@@ -234,6 +247,19 @@ export const markMessagesAsRead = async (
     );
 
     await Promise.all(updatePromises);
+
+    // Keep the conversation unread count aligned for the current user
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    const conversationSnapshot = await getDoc(conversationRef);
+    const conversationData = conversationSnapshot.data();
+
+    if (conversationData) {
+      const isSupplier = conversationData.supplierId === userId;
+      const roleUnreadField = isSupplier ? 'supplierUnreadCount' : 'consumerUnreadCount';
+      await updateDoc(conversationRef, {
+        [roleUnreadField]: 0,
+      });
+    }
   } catch (error) {
     console.error('Mark messages as read error:', error);
   }
@@ -282,6 +308,7 @@ export const subscribeToConsumerConversations = (
       conversations.push({
         id: doc.id,
         ...data,
+        unreadCount: data.consumerUnreadCount ?? data.unreadCount ?? 0,
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
           timestamp: data.lastMessage.timestamp?.toDate() || new Date(),
@@ -312,6 +339,7 @@ export const subscribeToSupplierConversations = (
       conversations.push({
         id: doc.id,
         ...data,
+        unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
           timestamp: data.lastMessage.timestamp?.toDate() || new Date(),
@@ -342,5 +370,43 @@ export const getUnreadCount = async (
   } catch (error) {
     console.error('Get unread count error:', error);
     return 0;
+  }
+};
+
+// Edit a message
+export const editMessage = async (
+  messageId: string,
+  newText: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const messageRef = doc(db, MESSAGES_COLLECTION, messageId);
+    await updateDoc(messageRef, {
+      text: newText,
+      isEdited: true,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Edit message error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to edit message.',
+    };
+  }
+};
+
+// Delete a message
+export const deleteMessage = async (
+  messageId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await deleteDoc(doc(db, MESSAGES_COLLECTION, messageId));
+    return { success: true };
+  } catch (error: any) {
+    console.error('Delete message error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to delete message.',
+    };
   }
 };

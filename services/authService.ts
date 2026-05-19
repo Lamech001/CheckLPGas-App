@@ -387,6 +387,37 @@ export const signInWithGoogle = async (_role: UserRole = 'consumer'): Promise<{
 };
 
 // Sign out - Also closes supplier shop so they disappear from consumer map
+export const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const user = auth.currentUser;
+    if (!user) return { success: false, error: 'No authenticated user' };
+
+    const uid = user.uid;
+
+    // Best-effort cleanup of Firestore user documents.
+    // We remove the main user doc and any supplier doc tied to this uid.
+    // NOTE: If other collections reference uid, add them here.
+    const userRef = doc(db, 'users', uid);
+    const supplierRef = doc(db, 'suppliers', uid);
+
+    // Dynamic import so deletion can work even if tree-shaking differs.
+    const { deleteDoc } = await import('firebase/firestore');
+
+    await Promise.all([
+      deleteDoc(userRef).catch(() => undefined),
+      deleteDoc(supplierRef).catch(() => undefined),
+    ]);
+
+    // Delete auth user. (May require re-auth on some cases.)
+    await user.delete();
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || error?.code || 'Failed to delete account' };
+  }
+};
+
+// Sign out - Also closes supplier shop so they disappear from consumer map
 export const logOut = async (): Promise<{ success: boolean; error?: string }> => {
   try {
     const user = auth.currentUser;

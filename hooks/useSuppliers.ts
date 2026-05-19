@@ -68,8 +68,9 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
   const fetchSuppliers = useCallback(async (background = false) => {
     if (!latitude || !longitude || !isMounted.current) return;
 
-    // Skip if location hasn't changed and not background refresh
-    if (!background && !hasLocationChanged(latitude, longitude, radiusKm)) {
+    // Always fetch on non-background calls to ensure suppliers appear
+    // Skip only on background refresh if location hasn't changed significantly
+    if (background && !hasLocationChanged(latitude, longitude, radiusKm)) {
       return;
     }
 
