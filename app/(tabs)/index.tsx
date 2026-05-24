@@ -161,7 +161,6 @@ export default function ConsumerHomeScreen() {
 
     const REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes - optimized for <2s response
     const intervalId = setInterval(() => {
-      console.log('Auto-refreshing suppliers (10-minute interval)');
       refreshSuppliers();
     }, REFRESH_INTERVAL);
 

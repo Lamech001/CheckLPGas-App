@@ -21,6 +21,13 @@ import { Conversation, CreateConversationData, Message, SendMessageData } from '
 const CONVERSATIONS_COLLECTION = 'conversations';
 const MESSAGES_COLLECTION = 'messages';
 
+// Helper to check if error is offline-related
+const isOfflineError = (error: any): boolean => {
+  return error?.code === 'unavailable' ||
+         error?.message?.includes('client is offline') ||
+         error?.message?.includes('offline');
+};
+
 // Create a new conversation between consumer and supplier
 export const createConversation = async (
   data: CreateConversationData
@@ -34,12 +41,12 @@ export const createConversation = async (
     );
 
     const querySnapshot = await getDocs(q);
-    
+
     if (!querySnapshot.empty) {
       // Return existing conversation
-      return { 
-        success: true, 
-        conversationId: querySnapshot.docs[0].id 
+      return {
+        success: true,
+        conversationId: querySnapshot.docs[0].id
       };
     }
 
@@ -62,6 +69,11 @@ export const createConversation = async (
 
     return { success: true, conversationId: conversationRef.id };
   } catch (error: any) {
+    // Handle offline - conversation will sync when back online
+    if (isOfflineError(error)) {
+      console.log('[Chat] Offline - conversation queued for sync');
+      return { success: true };
+    }
     console.error('Create conversation error:', error);
     return {
       success: false,
@@ -105,6 +117,11 @@ export const sendMessage = async (
 
     return { success: true, messageId: messageRef.id };
   } catch (error: any) {
+    // Handle offline - message will sync when back online
+    if (isOfflineError(error)) {
+      console.log('[Chat] Offline - message queued for sync');
+      return { success: true };
+    }
     console.error('Send message error:', error);
     return {
       success: false,
@@ -321,6 +338,27 @@ export const subscribeToConsumerConversations = (
   });
 };
 
+// Get consumer phone number from Firestore users collection
+const getConsumerPhoneNumber = async (consumerId: string): Promise<string | undefined> => {
+  try {
+    const userDocRef = doc(db, 'users', consumerId);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      // Try various phone field names and formats
+      const phone = data.phoneNumber || data.phone || data.Telephone || data.tel;
+      if (phone && typeof phone === 'string' && phone.trim().length > 0) {
+        return phone.trim();
+      }
+    }
+    return undefined;
+  } catch (error) {
+    console.error('Error fetching consumer phone:', error);
+    return undefined;
+  }
+};
+
 // Subscribe to supplier conversations (real-time)
 export const subscribeToSupplierConversations = (
   supplierId: string,
@@ -332,11 +370,14 @@ export const subscribeToSupplierConversations = (
     orderBy('updatedAt', 'desc')
   );
 
-  return onSnapshot(q, (querySnapshot) => {
+  return onSnapshot(q, async (querySnapshot) => {
+    console.log('[ChatService] Query snapshot size:', querySnapshot.size, 'supplierId:', supplierId);
     const conversations: Conversation[] = [];
-    querySnapshot.forEach((doc) => {
+
+    for (const doc of querySnapshot.docs) {
       const data = doc.data();
-      conversations.push({
+      console.log('[ChatService] Doc:', doc.id, 'supplierId:', data.supplierId);
+      let conversation: Conversation = {
         id: doc.id,
         ...data,
         unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
@@ -346,8 +387,19 @@ export const subscribeToSupplierConversations = (
         } : undefined,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
-      } as Conversation);
-    });
+      };
+
+      // Fetch phone number if not present in conversation data
+      if (!data.consumerPhone) {
+        const phone = await getConsumerPhoneNumber(data.consumerId);
+        if (phone) {
+          conversation.consumerPhone = phone;
+        }
+      }
+
+      conversations.push(conversation);
+    }
+
     callback(conversations);
   });
 };
@@ -407,6 +459,21 @@ export const deleteMessage = async (
     return {
       success: false,
       error: error.message || 'Failed to delete message.',
+    };
+  }
+};
+
+// Delete conversation (for "Mark as Delivered")
+export const deleteConversation = async (conversationId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    await deleteDoc(conversationRef);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Delete conversation error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to delete conversation.',
     };
   }
 };

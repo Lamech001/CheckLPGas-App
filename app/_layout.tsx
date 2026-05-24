@@ -1,8 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+
 
 import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { DeepLinkHandler } from '@/components/DeepLinkHandler';
@@ -25,7 +25,7 @@ function AppContent() {
   return (
     <NavigationThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
       <DeepLinkHandler>
-        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+
         <ConnectionIndicator />
         <Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
           <Stack.Screen name="index" />

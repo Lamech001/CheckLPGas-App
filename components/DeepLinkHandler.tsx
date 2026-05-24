@@ -16,8 +16,6 @@ export function DeepLinkHandler({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Handle deep link when app is opened from a link
     const handleDeepLink = async (url: string) => {
-      console.log('Deep link received:', url);
-      
       // Parse the URL
       const { path, queryParams } = Linking.parse(url);
       
@@ -52,7 +50,7 @@ export function DeepLinkHandler({ children }: { children: React.ReactNode }) {
 
     // Also check auth state on mount
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('Auth state changed:', user?.email, 'Verified:', user?.emailVerified);
+      // Auth state changed
     });
 
     return () => {

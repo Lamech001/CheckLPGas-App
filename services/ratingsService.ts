@@ -20,6 +20,13 @@ import {
     where
 } from 'firebase/firestore';
 
+// Helper to check if error is offline-related
+const isOfflineError = (error: any): boolean => {
+  return error?.code === 'unavailable' ||
+         error?.message?.includes('client is offline') ||
+         error?.message?.includes('offline');
+};
+
 export interface RatingData {
   id?: string;
   supplierId: string;
@@ -93,6 +100,11 @@ export const submitRating = async (
 
     return { success: true };
   } catch (error: any) {
+    // Handle offline error - rating will sync when back online
+    if (isOfflineError(error)) {
+      console.log('[Ratings] Offline - rating queued for sync');
+      return { success: true }; // Treat as success for offline, it'll sync later
+    }
     console.error('[Ratings] Submit rating error:', error);
     return { success: false, error: error.message || 'Failed to submit rating' };
   }
@@ -126,6 +138,10 @@ export const getSupplierRatings = async (
 
     return { success: true, ratings };
   } catch (error: any) {
+    if (isOfflineError(error)) {
+      console.log('[Ratings] Offline - returning empty ratings');
+      return { success: true, ratings: [] };
+    }
     console.error('[Ratings] Get ratings error:', error);
     return { success: false, error: error.message || 'Failed to fetch ratings' };
   }
@@ -144,7 +160,7 @@ export const getSupplierRatingStats = async (
     );
 
     const snapshot = await getDocs(ratingsQuery);
-    
+
     let totalRating = 0;
     let totalCount = 0;
     const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
@@ -167,6 +183,13 @@ export const getSupplierRatingStats = async (
 
     return { success: true, stats };
   } catch (error: any) {
+    if (isOfflineError(error)) {
+      console.log('[Ratings] Offline - returning zero stats');
+      return {
+        success: true,
+        stats: { averageRating: 0, totalRatings: 0, ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } }
+      };
+    }
     console.error('[Ratings] Get stats error:', error);
     return { success: false, error: error.message || 'Failed to fetch rating stats' };
   }

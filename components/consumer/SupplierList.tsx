@@ -14,12 +14,9 @@ interface SupplierListProps {
 export const SupplierList: React.FC<SupplierListProps> = ({ suppliers, loading = false }) => {
   const [selectedSize, setSelectedSize] = useState<CylinderSize | 'all'>('all');
 
-  // Ensure only suppliers that are actually open are visible in the consumer dashboard.
-  // (Distance+open are expected to be handled by the hook query, but filtering again here prevents
-  // race conditions where a just-registered supplier may appear before isOpen/location settle.)
-  const openSuppliers = suppliers.filter((s) => s.isOpen === true);
-
-  const filteredSuppliers = filterByCylinderSize(openSuppliers, selectedSize);
+  // Show all suppliers (including closed ones) to ensure recently ordered suppliers stay visible.
+  // The isOpen filter was causing suppliers to disappear after receiving orders.
+  const filteredSuppliers = filterByCylinderSize(suppliers, selectedSize);
 
   return (
     <View style={styles.container}>

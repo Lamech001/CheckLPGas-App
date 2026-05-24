@@ -1,10 +1,10 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { SplashScreen } from '@/components/SplashScreen';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppStatusBar } from '@/components/AppStatusBar';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -160,6 +160,20 @@ export default function WelcomeScreen() {
 
         {/* Divider */}
         <View style={styles.divider} />
+
+        {/* Footer - Terms & Privacy */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            By continuing with this app, you agree to our{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/terms')}>
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/privacy')}>
+              Privacy Policy
+            </Text>
+          </Text>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -382,5 +396,20 @@ const styles = StyleSheet.create({
   },
   supplierSignUpButtonText: {
     color: '#FF9800',
+  },
+  footer: {
+    marginTop: 'auto',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#757575',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  footerLink: {
+    color: '#2196F3',
+    textDecorationLine: 'underline',
   },
 });

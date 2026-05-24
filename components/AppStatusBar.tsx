@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect } from 'react';
 import { Platform, StatusBar as RNStatusBar } from 'react-native';
 
+
 interface AppStatusBarProps {
   backgroundColor?: string;
   barStyle?: 'default' | 'light-content' | 'dark-content';
@@ -17,22 +18,21 @@ export const AppStatusBar: React.FC<AppStatusBarProps> = ({
 }) => {
   const pathname = usePathname();
 
-  const applyStatusBar = useCallback(() => {
-    // Set status bar color immediately using RN StatusBar for Android
+  // Let expo-status-bar handle the visual bar.
+  // RN StatusBar updates can introduce a 1px divider on some Android devices.
+  const statusBarStyle = barStyle === 'light-content' ? 'light' : barStyle === 'dark-content' ? 'dark' : 'auto';
+
+  // IMPORTANT: on some Android devices, RN StatusBar background updates can render
+  // a 1px divider line under the status bar in release/assembleRelease builds.
+  // We avoid setting RN StatusBar styles here and rely only on expo-status-bar.
+  useEffect(() => {
     if (Platform.OS === 'android') {
-      RNStatusBar.setBackgroundColor(backgroundColor);
-      RNStatusBar.setTranslucent(false);
       NavigationBar.setButtonStyleAsync(navBarButtonColor);
     }
-    RNStatusBar.setBarStyle(barStyle);
-  }, [backgroundColor, barStyle, navBarButtonColor]);
+  }, [pathname, navBarButtonColor]);
 
-  useEffect(() => {
-    applyStatusBar();
-  }, [pathname, applyStatusBar]);
 
-  // Return actual StatusBar component from expo-status-bar
-  // Map barStyle: 'light-content' -> 'light', 'dark-content' -> 'dark', 'default' -> 'auto'
-  const statusBarStyle = barStyle === 'light-content' ? 'light' : barStyle === 'dark-content' ? 'dark' : 'auto';
   return <StatusBar style={statusBarStyle as any} backgroundColor={backgroundColor} />;
 };
+
+

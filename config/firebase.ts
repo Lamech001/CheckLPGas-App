@@ -4,7 +4,7 @@ import type { Auth } from 'firebase/auth';
 import { getAuth, initializeAuth } from 'firebase/auth';
 // @ts-ignore - getReactNativePersistence is available but not in types
 import { getReactNativePersistence } from 'firebase/auth';
-import { disableNetwork, enableNetwork, getFirestore } from 'firebase/firestore';
+import { disableNetwork, enableNetwork, enableIndexedDbPersistence, getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 // Suppress Firebase Firestore internal errors from console (smooth UX)
@@ -81,6 +81,15 @@ if (isFirstLoad) {
 
 // Initialize Firestore once and use the same instance across hot reloads
 const db = getFirestore(app);
+
+// Enable Firestore offline persistence (handles offline read/write until reconnect)
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    console.log('[Firestore] Persistence unavailable: multiple tabs open');
+  } else if (err.code === 'unimplemented') {
+    console.log('[Firestore] Persistence not available on this platform');
+  }
+});
 
 let enableNetworkPromise: Promise<void> | null = null;
 let disableNetworkPromise: Promise<void> | null = null;

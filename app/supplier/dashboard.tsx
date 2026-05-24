@@ -1,11 +1,13 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { NotificationsModal } from '@/components/NotificationsModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { RatingBreakdown, StarRating } from '@/components/StarRating';
 import { auth } from '@/config/firebase';
+import { subscribeToSupplierConversations } from '@/services/chatService';
 import {
-  getSupplierData,
-  toggleShopStatus,
-  updateSupplierPrices,
+    getSupplierData,
+    toggleShopStatus,
+    updateSupplierPrices,
 } from '@/services/supplierAuthService';
 import type { SupplierData } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -13,18 +15,18 @@ import { useRouter } from 'expo-router';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppStatusBar } from '@/components/AppStatusBar';
 
 interface PriceData {
   size: 6 | 13 | 19;
@@ -47,6 +49,10 @@ export default function SupplierDashboardScreen() {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Orders count
+  const [orderCount, setOrderCount] = useState(0);
+  const [showRatingsModal, setShowRatingsModal] = useState(false);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -118,6 +124,17 @@ export default function SupplierDashboardScreen() {
     return () => {
       isActive = false;
     };
+  }, [user]);
+
+  // Subscribe to orders count
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToSupplierConversations(user.uid, (conversations) => {
+      setOrderCount(conversations.length);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const loadSupplierData = async () => {
@@ -309,7 +326,7 @@ export default function SupplierDashboardScreen() {
               )}
             </View>
           </TouchableOpacity>
-          
+
           {/* Settings Icon */}
           <TouchableOpacity
             onPress={handleOpenSettings}
@@ -343,36 +360,53 @@ export default function SupplierDashboardScreen() {
         onToggleShopStatus={handleToggleStatus}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Ratings Card */}
-        <View style={styles.ratingsCard}>
-          <View style={styles.ratingsHeader}>
-            <FontAwesome5 name="star" size={20} color="#F59E0B" />
-            <Text style={styles.ratingsTitle}>Customer Ratings</Text>
-          </View>
-          
-          <View style={styles.ratingsContent}>
-            <View style={styles.averageRatingSection}>
-              <Text style={styles.averageRatingValue}>
-                {(supplierData.rating || 0).toFixed(1)}
-              </Text>
-              <StarRating 
-                rating={supplierData.rating || 0} 
-                size={24}
-                showValue={false}
-              />
-              <Text style={styles.totalRatingsText}>
-                {supplierData.totalRatings || 0} ratings
-              </Text>
+      {/* Ratings Detail Modal */}
+      <Modal visible={showRatingsModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rating Details</Text>
+              <TouchableOpacity onPress={() => setShowRatingsModal(false)}>
+                <FontAwesome5 name="times" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
-            
-            <View style={styles.breakdownSection}>
-              <RatingBreakdown 
+            <View style={styles.modalBody}>
+              <View style={styles.modalRatingHeader}>
+                <Text style={styles.modalBigRating}>{(supplierData.rating || 0).toFixed(1)}</Text>
+                <StarRating rating={supplierData.rating || 0} size={28} showValue={false} />
+                <Text style={styles.modalTotalReviews}>{supplierData.totalRatings || 0} reviews</Text>
+              </View>
+              <RatingBreakdown
                 distribution={supplierData.ratingDistribution || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }}
                 total={supplierData.totalRatings || 0}
               />
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Two Side-by-Side Cards */}
+        <View style={styles.statsRow}>
+          {/* Ratings Card - Compact */}
+          <TouchableOpacity style={styles.compactCard} onPress={() => setShowRatingsModal(true)}>
+            <View style={styles.compactCardIcon}>
+              <FontAwesome5 name="star" size={20} color="#F59E0B" />
+            </View>
+            <Text style={styles.compactCardValue}>{(supplierData.rating || 0).toFixed(1)}</Text>
+            <Text style={styles.compactCardLabel}>{supplierData.totalRatings || 0} Reviews</Text>
+            <Text style={styles.compactCardHint}>Tap for details</Text>
+          </TouchableOpacity>
+
+          {/* Orders Card - Compact */}
+          <TouchableOpacity style={styles.compactCard} onPress={() => router.push('/supplier/orders')}>
+            <View style={[styles.compactCardIcon, { backgroundColor: '#E3F2FD' }]}>
+              <FontAwesome5 name="clipboard-list" size={20} color="#1976D2" />
+            </View>
+            <Text style={styles.compactCardValue}>{orderCount}</Text>
+            <Text style={styles.compactCardLabel}>Order{orderCount !== 1 ? '(s)' : ''}</Text>
+            <Text style={styles.compactCardHint}>Tap to view all</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Shop Status Card */}
@@ -644,53 +678,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
-  ratingsCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  ratingsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
-  },
-  ratingsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  ratingsContent: {
-    flexDirection: 'row',
-  },
-  averageRatingSection: {
-    alignItems: 'center',
-    paddingRight: 20,
-    borderRightWidth: 1,
-    borderRightColor: '#e0e0e0',
-    minWidth: 100,
-  },
-  averageRatingValue: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  totalRatingsText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  breakdownSection: {
-    flex: 1,
-    paddingLeft: 16,
-  },
   statusCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -867,5 +854,89 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 32,
+  },
+  // Stats Row - two side-by-side cards
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  compactCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  compactCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF3E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  compactCardValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  compactCardLabel: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+  },
+  compactCardHint: {
+    fontSize: 11,
+    color: '#ccc',
+    marginTop: 6,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalRatingHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalBigRating: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  modalTotalReviews: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
   },
 });
