@@ -1,6 +1,6 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { auth } from '@/config/firebase';
-import { deleteConversation, subscribeToSupplierConversations } from '@/services/chatService';
+import { confirmDelivery, subscribeToSupplierConversations } from '@/services/chatService';
 import { formatMessageTime, type Conversation } from '@/services/types/chat';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -33,16 +33,22 @@ export default function SupplierOrdersScreen() {
 
     console.log('[Orders] Subscribing with supplierId:', currentUser.uid);
 
-    const unsubscribe = subscribeToSupplierConversations(currentUser.uid, (updatedConversations) => {
-      console.log('[Orders] Received conversations:', updatedConversations.length, 'supplierId:', currentUser.uid);
-      // Preserve existing conversations if new data is empty (network hiccup)
-      if (updatedConversations.length === 0 && conversationsRef.current.length > 0) {
-        return; // Keep existing data
+    const unsubscribe = subscribeToSupplierConversations(
+      currentUser.uid,
+      (updatedConversations) => {
+        // Preserve existing conversations if new data is empty (network hiccup)
+        if (updatedConversations.length === 0 && conversationsRef.current.length > 0) {
+          return;
+        }
+        conversationsRef.current = updatedConversations;
+        setConversations(updatedConversations);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Failed to load supplier orders:', error);
+        setLoading(false);
       }
-      conversationsRef.current = updatedConversations;
-      setConversations(updatedConversations);
-      setLoading(false);
-    });
+    );
 
     return () => unsubscribe();
   }, [currentUser]);
@@ -92,19 +98,14 @@ export default function SupplierOrdersScreen() {
   const handleMarkDelivered = (conversation: Conversation) => {
     Alert.alert(
       'Mark as Delivered',
-      `Complete this order for ${conversation.consumerName}? This will remove it from your orders.`,
+      `Complete this order for ${conversation.consumerName}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm',
           onPress: async () => {
-            // Immediately remove from UI for fast feedback
-            setConversations(prev => prev.filter(c => c.id !== conversation.id));
-
-            const result = await deleteConversation(conversation.id);
+            const result = await confirmDelivery(conversation.id);
             if (!result.success) {
-              // Re-add on failure
-              setConversations(prev => [...prev, conversation]);
               Alert.alert('Error', result.error || 'Failed to mark as delivered');
             }
           }
@@ -130,6 +131,9 @@ export default function SupplierOrdersScreen() {
   };
 
   const getOrderStatus = (conversation: Conversation): { label: string; color: string } => {
+    if (conversation.status === 'delivered') {
+      return { label: 'Delivered', color: '#9C27B0' };
+    }
     if (conversation.unreadCount > 0) {
       return { label: 'New Order', color: '#4CAF50' };
     }
@@ -240,7 +244,7 @@ export default function SupplierOrdersScreen() {
         {lastMessage && (
           <View style={styles.messagePreview}>
             <Text style={styles.messagePreviewText} numberOfLines={1}>
-              "{lastMessage.text}"
+              &ldquo;{lastMessage.text}&rdquo;
             </Text>
             <Text style={styles.messageTime}>
               {formatMessageTime(lastMessage.timestamp)}

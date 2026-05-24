@@ -28,10 +28,17 @@ export default function ConversationsScreen() {
       return;
     }
 
-    const unsubscribe = subscribeToConsumerConversations(currentUser.uid, (updatedConversations) => {
-      setConversations(updatedConversations);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeToConsumerConversations(
+      currentUser.uid,
+      (updatedConversations) => {
+        setConversations(updatedConversations);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Failed to load conversations:', error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [currentUser]);

@@ -29,10 +29,17 @@ export default function SupplierConversationsScreen() {
       return;
     }
 
-    const unsubscribe = subscribeToSupplierConversations(currentUser.uid, (updatedConversations) => {
-      setConversations(updatedConversations);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeToSupplierConversations(
+      currentUser.uid,
+      (updatedConversations) => {
+        setConversations(updatedConversations);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Failed to load supplier conversations:', error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [currentUser]);
