@@ -62,7 +62,6 @@ const retryAuthOperation = async <T,>(
           error.message?.includes('network') ||
           error.message?.includes('offline')) {
         if (attempt < maxRetries - 1) {
-          console.log(`Auth retry attempt ${attempt + 1}/${maxRetries} after network error...`);
           await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
           continue;
         }
@@ -118,10 +117,8 @@ const createUserDocument = async (
   while (!docSaved && saveAttempts < maxAttempts) {
     try {
       saveAttempts++;
-      console.log(`[Auth] Creating user document (attempt ${saveAttempts}) for:`, user.uid);
       await setDoc(userRef, userData);
       docSaved = true;
-      console.log('[Auth] User document created successfully for:', user.uid);
     } catch (error: any) {
       console.error(`[Auth] Document save attempt ${saveAttempts} failed:`, error.message);
       if (saveAttempts >= maxAttempts) {
@@ -137,8 +134,6 @@ const createUserDocument = async (
     const verifySnap = await getDoc(userRef);
     if (!verifySnap.exists()) {
       console.error('[Auth] Document verification failed - not found after save');
-    } else {
-      console.log('[Auth] User document verified in Firestore');
     }
   } catch (verifyError: any) {
     console.error('[Auth] Document verification error:', verifyError.message);
@@ -217,41 +212,32 @@ export const getUserRole = async (uid: string, retryCount = 0): Promise<{ role: 
 
   const fetchRole = async (attempt: number): Promise<{ role: 'consumer' | 'supplier' | null; error?: string }> => {
     try {
-      console.log('[Auth] Looking up role for UID:', uid);
-      
       // Check if user is a supplier first (more specific role)
-      console.log('[Auth] Checking suppliers collection...');
       const supplierDoc = await getDoc(doc(db, 'suppliers', uid));
       if (supplierDoc.exists()) {
-        console.log('[Auth] Found in suppliers collection');
         return { role: 'supplier' };
       }
-      console.log('[Auth] Not found in suppliers collection');
 
       // Check if user is a consumer
-      console.log('[Auth] Checking users collection...');
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const data = userDoc.data();
         const role = (data.role as 'consumer' | 'supplier') || 'consumer';
 
         if (!data.role) {
-          console.log('[Auth] User document missing role field, patching with default consumer role');
           await setDoc(doc(db, 'users', uid), { role }, { merge: true });
         }
 
-        console.log('[Auth] Found in users collection, role:', role);
         return { role };
       }
 
-      console.log('[Auth] User document missing entirely, creating default consumer profile');
+      // Create default consumer profile
       await setDoc(doc(db, 'users', uid), {
         role: 'consumer',
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      console.log('[Auth] Created fallback consumer document for UID:', uid);
       return { role: 'consumer' };
     } catch (error: any) {
       if (error.message?.includes('Target ID already exists')) {
@@ -433,7 +419,6 @@ export const logOut = async (): Promise<{ success: boolean; error?: string }> =>
         }
       } catch (e) {
         // Don't block logout if shop close fails
-        console.log('Could not close supplier shop:', e);
       }
     }
     

@@ -276,7 +276,7 @@ export default function ChatScreen() {
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingRoot}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 120 : 100}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 120 : 40}
     >
       <SafeAreaView style={styles.container}>
         <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
@@ -436,6 +436,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e1e5e9',
     backgroundColor: '#fff',
+    paddingBottom: 8, // Lift above Android navigation buttons
   },
   messageRow: {
     flexDirection: 'row',

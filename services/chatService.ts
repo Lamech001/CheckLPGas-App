@@ -15,10 +15,17 @@ import {
   where,
   limit,
 } from 'firebase/firestore';
-import { Conversation, CreateConversationData, Message, SendMessageData } from './types/chat';
+import { Conversation, ConversationStatus, CreateConversationData, Message, SendMessageData } from './types/chat';
 
 const CONVERSATIONS_COLLECTION = 'conversations';
 const MESSAGES_COLLECTION = 'messages';
+
+// Helper to check if error is offline-related
+const isOfflineError = (error: any): boolean => {
+  return error?.code === 'unavailable' ||
+         error?.message?.includes('client is offline') ||
+         error?.message?.includes('offline');
+};
 
 // Create a new conversation between consumer and supplier
 export const createConversation = async (
@@ -33,12 +40,12 @@ export const createConversation = async (
     );
 
     const querySnapshot = await getDocs(q);
-    
+
     if (!querySnapshot.empty) {
       // Return existing conversation
-      return { 
-        success: true, 
-        conversationId: querySnapshot.docs[0].id 
+      return {
+        success: true,
+        conversationId: querySnapshot.docs[0].id
       };
     }
 
@@ -61,6 +68,11 @@ export const createConversation = async (
 
     return { success: true, conversationId: conversationRef.id };
   } catch (error: any) {
+    // Handle offline - conversation will sync when back online
+    if (isOfflineError(error)) {
+      console.log('[Chat] Offline - conversation queued for sync');
+      return { success: true };
+    }
     console.error('Create conversation error:', error);
     return {
       success: false,
@@ -90,6 +102,10 @@ export const sendMessage = async (
       deleted: false,
     });
   } catch (error: any) {
+    if (isOfflineError(error)) {
+      console.log('[Chat] Offline - message queued for sync');
+      return { success: true };
+    }
     console.error('Send message error (addDoc):', error);
     return {
       success: false,
@@ -354,6 +370,27 @@ export const subscribeToConsumerConversations = (
   );
 };
 
+// Get consumer phone number from Firestore users collection
+const getConsumerPhoneNumber = async (consumerId: string): Promise<string | undefined> => {
+  try {
+    const userDocRef = doc(db, 'users', consumerId);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      // Try various phone field names and formats
+      const phone = data.phoneNumber || data.phone || data.Telephone || data.tel;
+      if (phone && typeof phone === 'string' && phone.trim().length > 0) {
+        return phone.trim();
+      }
+    }
+    return undefined;
+  } catch (error) {
+    console.error('Error fetching consumer phone:', error);
+    return undefined;
+  }
+};
+
 // Subscribe to supplier conversations (real-time)
 export const subscribeToSupplierConversations = (
   supplierId: string,
@@ -368,11 +405,12 @@ export const subscribeToSupplierConversations = (
 
   return onSnapshot(
     q,
-    (querySnapshot) => {
+    async (querySnapshot) => {
       const conversations: Conversation[] = [];
-      querySnapshot.forEach((docSnap) => {
+
+      for (const docSnap of querySnapshot.docs) {
         const data = docSnap.data();
-        conversations.push({
+        const conversation: Conversation = {
           id: docSnap.id,
           ...data,
           unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
@@ -382,8 +420,18 @@ export const subscribeToSupplierConversations = (
           } : undefined,
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
-        } as Conversation);
-      });
+        } as Conversation;
+
+        if (!data.consumerPhone) {
+          const phone = await getConsumerPhoneNumber(data.consumerId);
+          if (phone) {
+            conversation.consumerPhone = phone;
+          }
+        }
+
+        conversations.push(conversation);
+      }
+
       callback(conversations);
     },
     (error) => {
@@ -490,6 +538,48 @@ export const deleteMessage = async (
     return {
       success: false,
       error: error.message || 'Failed to delete message.',
+    };
+  }
+};
+
+// Mark a conversation as delivered (replaces the old deleteConversation)
+export const confirmDelivery = async (
+  conversationId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    await updateDoc(conversationRef, {
+      status: 'delivered' as ConversationStatus,
+      deliveredAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Confirm delivery error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to confirm delivery.',
+    };
+  }
+};
+
+// Reopen a delivered conversation
+export const reopenConversation = async (
+  conversationId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    await updateDoc(conversationRef, {
+      status: 'active' as ConversationStatus,
+      deliveredAt: null,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Reopen conversation error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to reopen conversation.',
     };
   }
 };

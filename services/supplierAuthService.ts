@@ -53,7 +53,6 @@ export const registerSupplier = async (
   
   try {
     // Step 1: Create user account
-    console.log('[SupplierAuth] Creating user account for:', data.email);
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       data.email,
@@ -61,7 +60,6 @@ export const registerSupplier = async (
     );
 
     user = userCredential.user;
-    console.log('[SupplierAuth] User created with UID:', user.uid);
 
     // Step 2: Create supplier document in Firestore with retry logic
     const supplierDocRef = doc(db, 'suppliers', user.uid);
@@ -84,29 +82,21 @@ export const registerSupplier = async (
     let docSaved = false;
     let saveAttempts = 0;
     const maxAttempts = 3;
-    
+
     while (!docSaved && saveAttempts < maxAttempts) {
       try {
         saveAttempts++;
-        console.log(`[SupplierAuth] Saving supplier document (attempt ${saveAttempts}) for UID: ${user.uid}`);
-        console.log('[SupplierAuth] Document path:', supplierDocRef.path);
-        console.log('[SupplierAuth] Document data:', JSON.stringify(supplierData, null, 2));
-        
         await setDoc(supplierDocRef, supplierData);
         docSaved = true;
-        console.log('[SupplierAuth] Supplier document created successfully for:', user.uid);
         
         // Verify the document was created
         const verifyDoc = await getDoc(supplierDocRef);
-        if (verifyDoc.exists()) {
-          console.log('[SupplierAuth] Document verification successful');
-        } else {
+        if (!verifyDoc.exists()) {
           console.error('[SupplierAuth] Document verification failed - document not found after creation');
           throw new Error('Document creation verification failed');
         }
       } catch (docError: any) {
         console.error(`[SupplierAuth] Document save attempt ${saveAttempts} failed:`, docError.message);
-        console.error('[SupplierAuth] Full error:', docError);
         if (saveAttempts >= maxAttempts) {
           throw new Error(`Failed to save supplier data after ${maxAttempts} attempts: ${docError.message}`);
         }
@@ -122,7 +112,6 @@ export const registerSupplier = async (
         console.error('[SupplierAuth] Document verification failed - not found after save');
         throw new Error('Supplier data could not be saved. Please try again.');
       }
-      console.log('[SupplierAuth] Document verified in Firestore');
     } catch (verifyError: any) {
       console.error('[SupplierAuth] Document verification error:', verifyError.message);
       // Don't fail registration if verification fails, just log it
@@ -135,7 +124,6 @@ export const registerSupplier = async (
         sendEmailVerification(user).catch(() => {}),
       ]);
     } catch (profileError: any) {
-      console.warn('[SupplierAuth] Profile update/email failed:', profileError.message);
       // Non-critical, don't fail registration
     }
 
@@ -143,10 +131,10 @@ export const registerSupplier = async (
     
   } catch (error: any) {
     console.error('[SupplierAuth] Registration error:', error);
-    
+
     // If user was created but document failed, we should clean up
     if (user && error.message?.includes('Failed to save supplier data')) {
-      console.warn('[SupplierAuth] User created but document save failed. User may need to re-register.');
+      // User created but document save failed
     }
     
     // Use friendly error message helper

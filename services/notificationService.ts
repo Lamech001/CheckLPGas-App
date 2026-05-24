@@ -125,3 +125,42 @@ export const scheduleNewSupplierNotification = async (
     { type: 'new_supplier', supplierName }
   );
 };
+
+// Send new order notification to supplier
+export const sendNewOrderNotification = async (
+  supplierId: string,
+  supplierName: string,
+  orderDetails: {
+    cylinderSize: string;
+    gasType: string;
+    quantity: string;
+    customerName: string;
+  }
+): Promise<void> => {
+  try {
+    // 1. Save notification to Firestore for supplier
+    const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+
+    await addDoc(collection(db, 'notifications'), {
+      userId: supplierId,
+      title: 'New Order Received!',
+      body: `${orderDetails.customerName} ordered ${orderDetails.quantity}x ${orderDetails.cylinderSize} (${orderDetails.gasType})`,
+      type: 'order',
+      read: false,
+      data: {
+        type: 'new_order',
+        orderDetails,
+      },
+      createdAt: serverTimestamp(),
+    });
+
+    // 2. Trigger local notification if app is open (supplier is active)
+    await sendLocalNotification(
+      'New Order Received!',
+      `${orderDetails.customerName} ordered ${orderDetails.quantity}x ${orderDetails.cylinderSize} ${orderDetails.gasType}`,
+      { type: 'new_order', supplierId }
+    );
+  } catch (error) {
+    console.error('[Notifications] Error sending new order notification:', error);
+  }
+};

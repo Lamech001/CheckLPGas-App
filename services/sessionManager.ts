@@ -3,7 +3,7 @@
  * Features: Auto token refresh, connection monitoring, session persistence
  */
 
-import { auth, db, enableFirestoreNetwork } from '@/config/firebase';
+import { auth, enableFirestoreNetwork } from '@/config/firebase';
 import { CACHE_KEYS, CACHE_TTL, getCache, setCache } from '@/services/cache';
 import NetInfo from '@react-native-community/netinfo';
 import { getIdToken, onAuthStateChanged, User } from 'firebase/auth';
@@ -63,8 +63,6 @@ class SessionManager {
   }
 
   private async onSessionStart(user: User): Promise<void> {
-    console.log('[SessionManager] Session started for:', user.uid);
-    
     // Immediate token refresh for fresh session
     await this.refreshToken(true);
     
@@ -89,7 +87,6 @@ class SessionManager {
   }
 
   private onSessionEnd(): void {
-    console.log('[SessionManager] Session ended');
     this.stopTokenRefreshTimer();
     this.currentUser = null;
     this.clearSessionState();
@@ -112,7 +109,6 @@ class SessionManager {
         persistent: true,
       });
 
-      console.log('[SessionManager] Token refreshed');
       return token;
     } catch (error) {
       console.error('[SessionManager] Token refresh failed:', error);
@@ -169,12 +165,9 @@ class SessionManager {
 
   private handleAppStateChange = async (nextAppState: AppStateStatus): Promise<void> => {
     if (nextAppState === 'active') {
-      console.log('[SessionManager] App became active');
-      
       // Check if session is still valid
       const state = await this.loadSessionState();
       if (state && !state.isSessionValid) {
-        console.log('[SessionManager] Session expired');
         return;
       }
 

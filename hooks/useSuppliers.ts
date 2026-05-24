@@ -154,10 +154,8 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
         if (isMounted.current) {
           // Auto-recover from offline errors by re-enabling network
           if (err.message?.includes('offline') || err.message?.includes('client is offline')) {
-            console.log('Offline detected, attempting network recovery...');
             import('@/config/firebase').then(({ enableFirestoreNetwork }) => {
               enableFirestoreNetwork().then(() => {
-                console.log('Network re-enabled successfully');
                 // Retry fetch after recovery
                 setTimeout(() => fetchSuppliers(true), 1000);
               }).catch(() => {});

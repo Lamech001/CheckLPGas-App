@@ -14,6 +14,8 @@ export interface Message {
   attachments?: string[];
 }
 
+export type ConversationStatus = 'active' | 'delivered';
+
 export interface Conversation {
   id: string;
   consumerId: string;
@@ -30,6 +32,8 @@ export interface Conversation {
   unreadCount: number;
   supplierUnreadCount?: number;
   consumerUnreadCount?: number;
+  status?: ConversationStatus;
+  deliveredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

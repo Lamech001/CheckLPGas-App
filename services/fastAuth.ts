@@ -43,10 +43,12 @@ export const fastSignup = async (data: FastSignupData): Promise<FastAuthResult> 
       updatedAt: serverTimestamp(),
     };
 
-    // Don't await Firestore - let it complete in background for speed
-    setDoc(userRef, userData).catch(err => {
-      console.error('[FastAuth] Background user doc save failed:', err);
-    });
+    // Properly await Firestore write to ensure phone number is saved
+    try {
+      await setDoc(userRef, userData);
+    } catch (err) {
+      console.error('[FastAuth] User doc save failed:', err);
+    }
 
     // Send verification email (don't await)
     sendEmailVerification(user).catch(() => {});
