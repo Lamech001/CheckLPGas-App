@@ -109,7 +109,7 @@ export default function SupplierConversationsScreen() {
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#1976D2" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#1976D2" barStyle="dark-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
           <Text style={styles.emptyText}>Sign in to view your order requests.</Text>
@@ -123,7 +123,7 @@ export default function SupplierConversationsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#1976D2" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#1976D2" barStyle="dark-content" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <FontAwesome5 name="arrow-left" size={20} color="#fff" />

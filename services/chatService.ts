@@ -15,11 +15,55 @@ import {
   updateDoc,
   where,
   limit,
+  type DocumentData,
 } from 'firebase/firestore';
 import { Conversation, CreateConversationData, Message, SendMessageData } from './types/chat';
 
 const CONVERSATIONS_COLLECTION = 'conversations';
 const MESSAGES_COLLECTION = 'messages';
+
+const toDateOrUndefined = (value: any): Date | undefined => {
+  if (!value) return undefined;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  return undefined;
+};
+
+const normalizeLiveLocation = (raw: any): Conversation['consumerLiveLocation'] | undefined => {
+  if (!raw) return undefined;
+  const latitude = Number(raw.latitude);
+  const longitude = Number(raw.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return undefined;
+  return {
+    latitude,
+    longitude,
+    ...(raw.address ? { address: String(raw.address) } : {}),
+  };
+};
+
+export const mapConversationDoc = (id: string, data: DocumentData): Conversation => ({
+  id,
+  consumerId: data.consumerId,
+  consumerName: data.consumerName,
+  consumerPhone: data.consumerPhone,
+  consumerLiveLocation: normalizeLiveLocation(data.consumerLiveLocation),
+  consumerLiveLocationUpdatedAt: toDateOrUndefined(data.consumerLiveLocationUpdatedAt),
+  consumerLiveLocationSharing: data.consumerLiveLocationSharing === true,
+  supplierId: data.supplierId,
+  supplierName: data.supplierName,
+  supplierEnterpriseName: data.supplierEnterpriseName,
+  unreadCount: data.supplierUnreadCount ?? data.consumerUnreadCount ?? data.unreadCount ?? 0,
+  supplierUnreadCount: data.supplierUnreadCount,
+  consumerUnreadCount: data.consumerUnreadCount,
+  lastMessage: data.lastMessage
+    ? {
+        ...data.lastMessage,
+        timestamp: data.lastMessage.timestamp?.toDate() || new Date(),
+      }
+    : undefined,
+  createdAt: data.createdAt?.toDate() || new Date(),
+  updatedAt: data.updatedAt?.toDate() || new Date(),
+});
 
 // Helper to check if error is offline-related
 const isOfflineError = (error: any): boolean => {
@@ -113,6 +157,8 @@ export const sendMessage = async (
       },
       updatedAt: serverTimestamp(),
       [recipientUnreadField]: increment(1),
+
+
     });
 
     return { success: true, messageId: messageRef.id };
@@ -185,6 +231,7 @@ export const getConsumerConversations = async (
       conversations.push({
         id: doc.id,
         ...data,
+        consumerLiveLocationUpdatedAt: toDateOrUndefined(data.consumerLiveLocationUpdatedAt),
         unreadCount: data.consumerUnreadCount ?? data.unreadCount ?? 0,
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
@@ -224,6 +271,7 @@ export const getSupplierConversations = async (
       conversations.push({
         id: doc.id,
         ...data,
+        consumerLiveLocationUpdatedAt: toDateOrUndefined(data.consumerLiveLocationUpdatedAt),
         unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
@@ -325,6 +373,7 @@ export const subscribeToConsumerConversations = (
       conversations.push({
         id: doc.id,
         ...data,
+        consumerLiveLocationUpdatedAt: toDateOrUndefined(data.consumerLiveLocationUpdatedAt),
         unreadCount: data.consumerUnreadCount ?? data.unreadCount ?? 0,
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
@@ -370,38 +419,53 @@ export const subscribeToSupplierConversations = (
     orderBy('updatedAt', 'desc')
   );
 
-  return onSnapshot(q, async (querySnapshot) => {
-    console.log('[ChatService] Query snapshot size:', querySnapshot.size, 'supplierId:', supplierId);
-    const conversations: Conversation[] = [];
+  return onSnapshot(
+    q,
+    async (querySnapshot) => {
+      console.log(
+        '[ChatService] Query snapshot size:',
+        querySnapshot.size,
+        'supplierId:',
+        supplierId
+      );
 
-    for (const doc of querySnapshot.docs) {
-      const data = doc.data();
-      console.log('[ChatService] Doc:', doc.id, 'supplierId:', data.supplierId);
-      let conversation: Conversation = {
-        id: doc.id,
-        ...data,
-        unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
-        lastMessage: data.lastMessage ? {
-          ...data.lastMessage,
-          timestamp: data.lastMessage.timestamp?.toDate() || new Date(),
-        } : undefined,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-      };
+      // Deduplicate by conversation id to keep React Native reconciliation stable
+      const byId = new Map<string, Conversation>();
 
-      // Fetch phone number if not present in conversation data
-      if (!data.consumerPhone) {
-        const phone = await getConsumerPhoneNumber(data.consumerId);
-        if (phone) {
-          conversation.consumerPhone = phone;
+      for (const docSnap of querySnapshot.docs) {
+        const id = docSnap.id;
+        const data = docSnap.data();
+
+        const baseConversation: Conversation = {
+          ...mapConversationDoc(id, data),
+          unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
+        };
+
+        // Resolve phone number without mutating after insertion
+        let consumerPhone = data.consumerPhone as string | undefined;
+        if (!consumerPhone) {
+          consumerPhone = await getConsumerPhoneNumber(data.consumerId);
         }
+
+        const finalConversation: Conversation = {
+          ...baseConversation,
+          ...(consumerPhone ? { consumerPhone } : {}),
+        };
+
+        byId.set(id, finalConversation);
       }
 
-      conversations.push(conversation);
+      callback(Array.from(byId.values()));
+    },
+    (error) => {
+      console.error(
+        '[Chat] subscribeToSupplierConversations error:',
+        error?.code,
+        error?.message
+      );
+      callback([]);
     }
-
-    callback(conversations);
-  });
+  );
 };
 
 // Get unread message count
@@ -476,4 +540,95 @@ export const deleteConversation = async (conversationId: string): Promise<{ succ
       error: error.message || 'Failed to delete conversation.',
     };
   }
+};
+
+export const updateConsumerLiveLocation = async (
+  conversationId: string,
+  location: { latitude: number; longitude: number; address?: string }
+): Promise<{ success: boolean; error?: string }> => {
+  if (!conversationId?.trim()) {
+    return { success: false, error: 'Missing conversation id.' };
+  }
+
+  try {
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    const payload = {
+      consumerLiveLocation: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        ...(location.address ? { address: location.address } : {}),
+      },
+      consumerLiveLocationUpdatedAt: serverTimestamp(),
+      consumerLiveLocationSharing: true,
+      updatedAt: serverTimestamp(),
+    };
+
+    const existing = await getDoc(conversationRef);
+    if (!existing.exists()) {
+      return { success: false, error: 'Order conversation not found. Please place the order again.' };
+    }
+
+    await setDoc(conversationRef, payload, { merge: true });
+    return { success: true };
+  } catch (error: any) {
+    if (isOfflineError(error)) {
+      console.log('[Chat] Offline — live location queued for sync');
+      return { success: true };
+    }
+    console.error('[Chat] Update consumer live location error:', error?.code, error?.message);
+    return {
+      success: false,
+      error: error.message || 'Failed to update live location.',
+    };
+  }
+};
+
+/** Stops active sharing but keeps the last saved coordinates in Firestore. */
+export const stopConsumerLiveLocationSharing = async (
+  conversationId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    await updateDoc(conversationRef, {
+      consumerLiveLocationSharing: false,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    if (isOfflineError(error)) {
+      return { success: true };
+    }
+    console.error('Stop consumer live location sharing error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to stop sharing live location.',
+    };
+  }
+};
+
+export const subscribeToConversation = (
+  conversationId: string,
+  callback: (conversation: Conversation | null) => void
+) => {
+  if (!conversationId?.trim()) {
+    callback(null);
+    return () => {};
+  }
+
+  const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+
+  return onSnapshot(
+    conversationRef,
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        callback(null);
+        return;
+      }
+      callback(mapConversationDoc(snapshot.id, snapshot.data()));
+    },
+    (error) => {
+      console.error('[Chat] subscribeToConversation error:', error?.code, error?.message);
+      callback(null);
+    }
+  );
 };

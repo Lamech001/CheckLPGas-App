@@ -258,7 +258,7 @@ export default function ChatScreen() {
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
           <Text style={styles.emptyText}>Please sign in to place orders</Text>
@@ -275,11 +275,12 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingRoot}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 120 : 40}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
+      // Use consistent offset across devices to avoid shifting the input below the tab bar
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 120 : 80}
     >
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -436,7 +437,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e1e5e9',
     backgroundColor: '#fff',
-    paddingBottom: 8, // Lift above Android navigation buttons
+    // Padding ensures the footer doesn't get covered by Android navigation/tab buttons.
+    // Use SafeArea insets / keyboard offset instead of large fixed padding.
+    paddingBottom: Platform.OS === 'android' ? 20 : 8,
   },
   messageRow: {
     flexDirection: 'row',
@@ -527,6 +530,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 8,
+    paddingBottom: Platform.OS === 'android' ? 60 : 8,
   },
   input: {
     flex: 1,

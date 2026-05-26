@@ -1,10 +1,12 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
+
 import { NotificationsPanel } from '@/components/consumer/NotificationsPanel';
 import { SideMenu } from '@/components/consumer/SideMenu';
 import { SupplierList } from '@/components/consumer/SupplierList';
 import { SupplierMap } from '@/components/consumer/SupplierMap';
 import { auth } from '@/config/firebase';
 import { AppColors, AppConstants, AppShadows, AppSizes } from '@/constants/appTheme';
+import { AppStatusBar } from '@/components/AppStatusBar';
+
 import { useSuppliers } from '@/hooks/useSuppliers';
 import { getUserRole } from '@/services/authService';
 import { cacheUserLocation, getCachedUserLocation } from '@/services/cacheService';
@@ -83,11 +85,30 @@ export default function ConsumerHomeScreen() {
       (response) => {
         // User tapped notification
         const data = response.notification.request.content.data as Record<string, any>;
+
         if (data?.type === 'new_supplier') {
           // Could navigate to specific supplier
           Alert.alert('New Supplier!', `Check out ${data.supplierName}`);
+          return;
+        }
+
+        // If supplier receives an order notification and they somehow land here,
+        // deep link to orders/chat to ensure they "get the order".
+        if (data?.type === 'new_order' && data?.supplierId) {
+          const conversationId = data?.conversationId as string | undefined;
+          if (conversationId) {
+            router.replace({
+              pathname: '/supplier/chat',
+              params: {
+                conversationId,
+              },
+            });
+          } else {
+            router.replace('/supplier/orders');
+          }
         }
       }
+
     );
     
     return () => unsubscribe();
@@ -179,7 +200,7 @@ export default function ConsumerHomeScreen() {
   if (showLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
         <ActivityIndicator size="large" color={AppColors.primary} />
         <Text style={styles.loadingText}>Finding gas suppliers near you...</Text>
       </View>
@@ -189,7 +210,7 @@ export default function ConsumerHomeScreen() {
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
         <FontAwesome5 name="exclamation-circle" size={48} color={AppColors.errorLight} />
         <Text style={styles.errorText}>{error.message}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
@@ -202,7 +223,7 @@ export default function ConsumerHomeScreen() {
   if (!userLocation) {
     return (
       <View style={styles.errorContainer}>
-        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
         <Text style={styles.errorText}>Location not available</Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
           <Text style={styles.retryButtonText}>Retry</Text>
@@ -215,17 +236,26 @@ export default function ConsumerHomeScreen() {
     <View style={styles.container}>
       {/* Minimal header with just buttons */}
       <View style={styles.minimalHeader}>
-        <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
-          <FontAwesome5 name="bars" size={24} color={AppColors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.notificationButton} onPress={() => setNotificationsVisible(true)}>
-          <FontAwesome5 name="bell" size={20} color={AppColors.primary} />
-          {unreadNotifications > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadNotifications > 99 ? '99+' : unreadNotifications}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.minimalHeaderSide}>
+          <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
+            <FontAwesome5 name="bars" size={24} color={AppColors.primary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.minimalHeaderCenter}>
+          <Text style={styles.brandText}>GasAround</Text>
+        </View>
+
+        <View style={styles.minimalHeaderSide}>
+          <TouchableOpacity style={styles.notificationButton} onPress={() => setNotificationsVisible(true)}>
+            <FontAwesome5 name="bell" size={20} color={AppColors.primary} />
+            {unreadNotifications > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadNotifications > 99 ? '99+' : unreadNotifications}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -352,6 +382,20 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: AppSizes.spacingSmall,
     backgroundColor: AppColors.background,
+  },
+  minimalHeaderSide: {
+    width: 48,
+    alignItems: 'flex-start',
+  },
+  minimalHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: AppColors.primary,
   },
   menuButton: {
     padding: AppSizes.spacingSmall,

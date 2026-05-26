@@ -1,7 +1,13 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { auth, db } from '@/config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { getOrCreateConversation, sendMessage } from '@/services/chatService';
+import {
+  getOrCreateConversation,
+  sendMessage,
+  stopConsumerLiveLocationSharing,
+  updateConsumerLiveLocation,
+} from '@/services/chatService';
+import * as Location from 'expo-location';
 import { sendNewOrderNotification } from '@/services/notificationService';
 import { SupplierWithDistance } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -23,7 +29,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 type OrderStep = 'cylinder_size' | 'gas_type' | 'quantity' | 'address' | 'confirm';
 type GasType = 'LPG' | 'BioGas' | 'Natural Gas' | 'Cooking Gas';
-type CylinderSize = '6kg' | '13kg' | '25kg';
+type CylinderSize = '6kg' | '13kg' | '19kg';
+
 
 interface OrderData {
   cylinderSize: CylinderSize | null;
@@ -39,7 +46,8 @@ interface ChatMessage {
   options?: string[];
 }
 
-const CYLINDER_SIZES: CylinderSize[] = ['6kg', '13kg', '25kg'];
+const CYLINDER_SIZES: CylinderSize[] = ['6kg', '13kg', '19kg'];
+
 const GAS_TYPES: GasType[] = ['LPG', 'BioGas', 'Natural Gas', 'Cooking Gas'];
 
 const STEP_PROMPTS: Record<OrderStep, string> = {
@@ -75,11 +83,27 @@ export default function OrderScreen() {
     },
   ]);
   const [inputText, setInputText] = useState('');
+  const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [orderLocation, setOrderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
   const [conversationId, setConversationId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const lastLocationUpdateRef = useRef<number>(0);
+  const conversationIdRef = useRef<string>('');
 
   useEffect(() => {
     initConversation();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (locationSubscriptionRef.current) {
+        locationSubscriptionRef.current.remove();
+        locationSubscriptionRef.current = null;
+      }
+      // Keep last saved location in Firestore when the app closes or user goes offline.
+    };
   }, []);
 
   useEffect(() => {
@@ -121,19 +145,36 @@ export default function OrderScreen() {
       }
     }
 
+    console.log('[Order][Debug] currentUser.uid:', currentUser.uid);
+    console.log('[Order][Debug] supplierData.uid:', supplierData.uid);
+
     const result = await getOrCreateConversation(conversationPayload);
+    console.log('[Order][Debug] conversationId result:', result);
+
     if (result.success && result.conversationId) {
       setConversationId(result.conversationId);
+      conversationIdRef.current = result.conversationId;
     }
   };
 
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
   const addMessage = (text: string, options?: string[], isSystem = true) => {
-    setMessages(prev => [...prev, {
-      id: `msg-${Date.now()}`,
-      isSystem,
-      text,
-      options,
-    }]);
+    setMessages(prev => {
+      // Use a monotonic id to avoid duplicate keys when messages are added in the same ms
+      const id = `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      return [
+        ...prev,
+        {
+          id,
+          isSystem,
+          text,
+          options,
+        },
+      ];
+    });
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
@@ -222,6 +263,8 @@ export default function OrderScreen() {
       console.log('[Order] Message sent:', msgResult.success, 'msgId:', msgResult.messageId);
 
       // Notify supplier about new order
+      // Ensure we notify using the supplierId from the conversation doc
+      // (not the supplier object coming from route params).
       await sendNewOrderNotification(
         supplierData.uid,
         supplierData.enterpriseName,
@@ -230,14 +273,171 @@ export default function OrderScreen() {
           gasType: gasType || '',
           quantity: quantity,
           customerName: currentUser.displayName || 'Customer',
-        }
+        },
+        conversationId
       );
+
+      // Also ensure conversation is updated with lastMessage so supplier orders list is consistent
+      // (in case notification arrived but chat write was delayed)
+      // Note: sendMessage already updates lastMessage + supplierUnreadCount.
+
     }
 
-    setTimeout(() => {
-      addMessage('✅ Order submitted successfully! The supplier will contact you shortly.', [], false);
-      setIsSubmitting(false);
-    }, 500);
+    setIsSubmitting(false);
+    addMessage('✅ Order submitted successfully! The supplier will contact you shortly.', [], false);
+    addMessage('Share your live location so the supplier can find you easily for delivery.', [], true);
+
+    promptShareLocationAfterOrder();
+  };
+
+  const promptShareLocationAfterOrder = () => {
+    if (isSharingLocation) return;
+
+    Alert.alert(
+      'Share location for delivery?',
+      'Help your supplier track your order easily. Your last location is saved even if you go offline later.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Share location',
+          onPress: () => startSharingLiveLocation(),
+        },
+      ]
+    );
+  };
+
+  const stopSharingLiveLocation = async () => {
+    if (locationSubscriptionRef.current) {
+      locationSubscriptionRef.current.remove();
+      locationSubscriptionRef.current = null;
+    }
+    setIsSharingLocation(false);
+
+    if (conversationIdRef.current) {
+      const result = await stopConsumerLiveLocationSharing(conversationIdRef.current);
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to stop sharing location.');
+      } else {
+        addMessage(
+          'Live sharing stopped. Your last location is still saved for the supplier.',
+          [],
+          true
+        );
+      }
+    }
+  };
+
+  const ensureConversationId = async (): Promise<string | null> => {
+    if (conversationIdRef.current) return conversationIdRef.current;
+    if (!currentUser || !supplierData) return null;
+
+    const result = await getOrCreateConversation({
+      consumerId: currentUser.uid,
+      consumerName: currentUser.displayName || 'Consumer',
+      supplierId: supplierData.uid,
+      supplierName: supplierData.fullName || supplierData.enterpriseName,
+      supplierEnterpriseName: supplierData.enterpriseName,
+    });
+
+    if (result.success && result.conversationId) {
+      setConversationId(result.conversationId);
+      conversationIdRef.current = result.conversationId;
+      return result.conversationId;
+    }
+
+    return null;
+  };
+
+  const pushCurrentLocation = async (): Promise<boolean> => {
+    const activeConversationId = await ensureConversationId();
+    if (!activeConversationId) {
+      Alert.alert('Error', 'Could not find your order conversation. Please submit the order first.');
+      return false;
+    }
+
+    const currentPosition = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    const coords = {
+      latitude: currentPosition.coords.latitude,
+      longitude: currentPosition.coords.longitude,
+    };
+    setOrderLocation(coords);
+
+    const result = await updateConsumerLiveLocation(activeConversationId, {
+      ...coords,
+      address: orderData.address || undefined,
+    });
+
+    if (!result.success) {
+      Alert.alert('Location not saved', result.error || 'Could not send location to supplier.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const startSharingLiveLocation = async () => {
+    const activeConversationId = await ensureConversationId();
+    if (!activeConversationId) {
+      Alert.alert('Order Not Ready', 'Please submit your order first, then share live location.');
+      return;
+    }
+
+    const permission = await Location.requestForegroundPermissionsAsync();
+    const granted = permission.status === 'granted';
+    setLocationPermission(granted ? 'granted' : 'denied');
+    if (!granted) {
+      Alert.alert('Permission Required', 'Location permission is needed to share live location.');
+      return;
+    }
+
+    try {
+      const saved = await pushCurrentLocation();
+      if (!saved) return;
+
+      setIsSharingLocation(true);
+      addMessage('📍 Live location is now shared with your supplier.', [], true);
+
+      locationSubscriptionRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 10000,
+          distanceInterval: 20,
+        },
+        async (position) => {
+          const now = Date.now();
+          if (now - lastLocationUpdateRef.current < 8000) return;
+          lastLocationUpdateRef.current = now;
+
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          setOrderLocation(coords);
+
+          const cid = conversationIdRef.current;
+          if (!cid) return;
+
+          await updateConsumerLiveLocation(cid, {
+            ...coords,
+            address: orderData.address || undefined,
+          });
+        }
+      );
+    } catch (error) {
+      console.error('Start live location sharing error:', error);
+      Alert.alert('Error', 'Unable to start live location sharing.');
+      setIsSharingLocation(false);
+    }
+  };
+
+  const toggleLiveLocationSharing = async () => {
+    if (isSharingLocation) {
+      await stopSharingLiveLocation();
+      return;
+    }
+    await startSharingLiveLocation();
   };
 
   const handleStartOver = () => {
@@ -300,7 +500,11 @@ export default function OrderScreen() {
         break;
       case 'gas_type':
         if (GAS_TYPES.includes(option as GasType)) {
-          handleGasTypeSelection(option as GasType);
+          // Selecting a gas type sets the input and proceeds to quantity step
+          setOrderData(prev => ({ ...prev, gasType: option as GasType }));
+          addMessage(`✓ Gas type: ${option}`, [], false);
+          addMessage(STEP_PROMPTS.quantity + ':', ['1', '2', '3', '4', '5']);
+          setCurrentStep('quantity');
         }
         break;
       case 'confirm':
@@ -323,10 +527,11 @@ export default function OrderScreen() {
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingRoot}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -40}
     >
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        
+        <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
 
         {/* Header */}
         <View style={styles.header}>
@@ -364,14 +569,43 @@ export default function OrderScreen() {
           renderItem={renderMessage}
           keyExtractor={item => item.id}
           style={styles.messageList}
-          contentContainerStyle={[styles.messagesContainer, { flexGrow: 1, paddingBottom: 140 }]}
+          contentContainerStyle={[styles.messagesContainer, { flexGrow: 1, paddingBottom: 0 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
         />
 
         {/* Input Area */}
-        <View style={styles.inputWrapper}>
+        <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + -35 }]}>
+          {currentStep === 'confirm' && (
+            <View style={styles.liveLocationContainer}>
+              <Text style={styles.liveLocationLabel}>
+                {isSharingLocation
+                  ? 'Live location is being shared with supplier.'
+                  : 'Share live location to help supplier track delivery.'}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.liveLocationButton,
+                  isSharingLocation ? styles.liveLocationButtonStop : styles.liveLocationButtonStart,
+                ]}
+                onPress={toggleLiveLocationSharing}
+              >
+                <FontAwesome5 name={isSharingLocation ? 'stop-circle' : 'location-arrow'} size={14} color="#fff" />
+                <Text style={styles.liveLocationButtonText}>
+                  {isSharingLocation ? 'Stop Sharing' : 'Share Live Location'}
+                </Text>
+              </TouchableOpacity>
+              {orderLocation && (
+                <Text style={styles.liveLocationMeta}>
+                  {`Last: ${orderLocation.latitude.toFixed(5)}, ${orderLocation.longitude.toFixed(5)}`}
+                </Text>
+              )}
+              {locationPermission === 'denied' && (
+                <Text style={styles.liveLocationError}>Location permission denied. Enable it in settings.</Text>
+              )}
+            </View>
+          )}
           {currentStep === 'quantity' && (
             <View style={styles.quickReplies}>
               {['1', '2', '3', '4', '5'].map(num => (
@@ -390,7 +624,7 @@ export default function OrderScreen() {
               style={styles.input}
               placeholder={
                 currentStep === 'gas_type'
-                  ? 'Enter gas type (e.g., LPG, BioGas)...'
+                  ? 'Enter gas type (e.g., Pro,K-gas, Afrigas)...'
                   : currentStep === 'quantity'
                   ? 'Enter quantity...'
                   : currentStep === 'address'
@@ -510,4 +744,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   sendButtonDisabled: { backgroundColor: '#d1d1d6' },
+  liveLocationContainer: {
+    backgroundColor: '#f0f7ff',
+    borderTopWidth: 1,
+    borderTopColor: '#d9e9ff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#d9e9ff',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  liveLocationLabel: {
+    color: '#124274',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  liveLocationButton: {
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  liveLocationButtonStart: {
+    backgroundColor: '#007AFF',
+  },
+  liveLocationButtonStop: {
+    backgroundColor: '#E53935',
+  },
+  liveLocationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  liveLocationMeta: {
+    color: '#2d5f94',
+    fontSize: 12,
+  },
+  liveLocationError: {
+    color: '#B00020',
+    fontSize: 12,
+  },
 });

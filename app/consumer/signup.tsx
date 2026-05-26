@@ -97,7 +97,7 @@ export default function ConsumerSignup() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#007AFF" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}

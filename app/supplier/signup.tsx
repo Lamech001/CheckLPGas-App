@@ -256,7 +256,7 @@ export default function SupplierSignupScreen() {
   
   return (
     <SafeAreaView style={styles.safeArea}>
-      <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}

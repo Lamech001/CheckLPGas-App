@@ -135,7 +135,9 @@ export const sendNewOrderNotification = async (
     gasType: string;
     quantity: string;
     customerName: string;
-  }
+  },
+  // Optional: conversation id so we can deep-link straight into the order chat
+  conversationId?: string
 ): Promise<void> => {
   try {
     // 1. Save notification to Firestore for supplier
@@ -149,7 +151,10 @@ export const sendNewOrderNotification = async (
       read: false,
       data: {
         type: 'new_order',
+        supplierId,
+        supplierName,
         orderDetails,
+        conversationId: conversationId || null,
       },
       createdAt: serverTimestamp(),
     });
@@ -158,9 +163,10 @@ export const sendNewOrderNotification = async (
     await sendLocalNotification(
       'New Order Received!',
       `${orderDetails.customerName} ordered ${orderDetails.quantity}x ${orderDetails.cylinderSize} ${orderDetails.gasType}`,
-      { type: 'new_order', supplierId }
+      { type: 'new_order', supplierId, conversationId: conversationId || null }
     );
   } catch (error) {
     console.error('[Notifications] Error sending new order notification:', error);
   }
 };
+

@@ -1,6 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform, StatusBar as RNStatusBar } from 'react-native';
 import 'react-native-reanimated';
 
 
@@ -22,8 +24,16 @@ function AppContent() {
     return () => sessionManager.cleanup();
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      RNStatusBar.setBarStyle('dark-content', true);
+      RNStatusBar.setTranslucent(false);
+    }
+  }, []);
+
   return (
     <NavigationThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
+      <StatusBar style="dark" />
       <DeepLinkHandler>
 
         <ConnectionIndicator />

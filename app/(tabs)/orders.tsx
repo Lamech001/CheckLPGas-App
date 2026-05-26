@@ -94,7 +94,7 @@ export default function ConversationsScreen() {
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#4CAF50" barStyle="dark-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
           <Text style={styles.emptyText}>Please sign in to view messages</Text>
@@ -107,8 +107,8 @@ export default function ConversationsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
+      <SafeAreaView style={styles.container}>
+      <AppStatusBar backgroundColor="#4CAF50" barStyle="dark-content" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Orders</Text>
         <Text style={styles.headerSubtitle}>{conversations.length} order threads</Text>

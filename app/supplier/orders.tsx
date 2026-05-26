@@ -1,6 +1,10 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
+import { ConsumerLiveLocationMapModal } from '@/components/supplier/ConsumerLiveLocationMapModal';
 import { auth } from '@/config/firebase';
 import { deleteConversation, subscribeToSupplierConversations } from '@/services/chatService';
+import { isNewOrderMessage } from '@/utils/orderMessage';
+
+
 import { formatMessageTime, type Conversation } from '@/services/types/chat';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -22,6 +26,8 @@ export default function SupplierOrdersScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [mapConversationId, setMapConversationId] = useState<string | null>(null);
+  const [mapConsumerName, setMapConsumerName] = useState<string>('Customer');
   const currentUser = auth.currentUser;
   const conversationsRef = useRef<Conversation[]>([]);
 
@@ -46,6 +52,12 @@ export default function SupplierOrdersScreen() {
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  useEffect(() => {
+    // Reset loading when conversations update
+    if (!loading && conversations.length > 0) return;
+  }, [conversations.length]);
+
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -152,14 +164,12 @@ export default function SupplierOrdersScreen() {
     const hasUnread = item.unreadCount > 0;
     const lastMessage = item.lastMessage;
     const orderDetails = lastMessage ? parseOrderDetails(lastMessage.text) : parseOrderDetails('');
+    const hasLiveLocation = !!item.consumerLiveLocation;
     const status = getOrderStatus(item);
     const orderId = `ORD-${item.id.slice(-8).toUpperCase()}`;
 
     return (
-      <TouchableOpacity
-        style={[styles.orderCard, hasUnread && styles.unreadCard]}
-        onPress={() => handleOrderPress(item)}
-      >
+      <View style={[styles.orderCard, hasUnread && styles.unreadCard]}>
         {/* Order Header */}
         <View style={styles.orderHeader}>
           <View style={styles.orderIdRow}>
@@ -236,12 +246,34 @@ export default function SupplierOrdersScreen() {
           </Text>
         </View>
 
-        {/* Last Message Preview */}
+        {/* Track Live Location Button (restored) */}
+        <View style={styles.locationActionRow}>
+          <TouchableOpacity
+            style={styles.trackLocationBtn}
+            onPress={() => {
+              setMapConversationId(item.id);
+              setMapConsumerName(item.consumerName);
+            }}
+          >
+            <FontAwesome5 name="location-arrow" size={14} color="#fff" />
+            <Text style={styles.trackLocationBtnText}>
+              {hasLiveLocation ? 'Track Live Location' : 'View Location Map'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Last Message Preview / Live location */}
         {lastMessage && (
           <View style={styles.messagePreview}>
-            <Text style={styles.messagePreviewText} numberOfLines={1}>
-              "{lastMessage.text}"
-            </Text>
+            {isNewOrderMessage(lastMessage.text) ? (
+              <Text style={styles.messagePreviewText} numberOfLines={1}>
+                {lastMessage.text}
+              </Text>
+            ) : (
+              <Text style={styles.messagePreviewText} numberOfLines={1}>
+                {lastMessage.text}
+              </Text>
+            )}
             <Text style={styles.messageTime}>
               {formatMessageTime(lastMessage.timestamp)}
             </Text>
@@ -265,14 +297,14 @@ export default function SupplierOrdersScreen() {
             <FontAwesome5 name="chevron-right" size={12} color="#007AFF" />
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
           <Text style={styles.emptyText}>Please sign in to view orders</Text>
@@ -286,7 +318,7 @@ export default function SupplierOrdersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={20} color="#fff" />
@@ -323,6 +355,13 @@ export default function SupplierOrdersScreen() {
           initialNumToRender={10}
         />
       )}
+
+      <ConsumerLiveLocationMapModal
+        visible={!!mapConversationId}
+        conversationId={mapConversationId ?? undefined}
+        consumerName={mapConsumerName}
+        onClose={() => setMapConversationId(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -564,9 +603,30 @@ const styles = StyleSheet.create({
   messagePreviewText: {
     fontSize: 13,
     color: '#666',
-    fontStyle: 'italic',
     flex: 1,
     marginRight: 10,
+  },
+  locationActionRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+  },
+  trackLocationBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginRight: 0,
+  },
+  trackLocationBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   messageTime: {
     fontSize: 11,

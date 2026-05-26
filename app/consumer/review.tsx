@@ -106,7 +106,7 @@ export default function ReviewScreen() {
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#4CAF50" barStyle="dark-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
           <Text style={styles.emptyText}>Please sign in to submit a review</Text>
@@ -121,7 +121,7 @@ export default function ReviewScreen() {
   if (alreadyReviewed) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#4CAF50" barStyle="dark-content" />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <FontAwesome5 name="arrow-left" size={20} color="#fff" />
@@ -145,7 +145,7 @@ export default function ReviewScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#4CAF50" barStyle="dark-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}

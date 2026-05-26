@@ -1,3 +1,4 @@
+
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { SplashScreen } from '@/components/SplashScreen';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -48,7 +49,7 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#4CAF50" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#FFFFFF" />
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoContainer}>

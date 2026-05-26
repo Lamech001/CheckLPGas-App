@@ -65,10 +65,12 @@ export default function SupplierLogin() {
           );
           return;
         }
-        // INSTANT NAVIGATION: Go to supplier dashboard
+        // INSTANT NAVIGATION: Go to supplier dashboard (orders are accessible from dashboard)
         setIsLoading(false);
         await safeReplace('/supplier/dashboard');
         return;
+
+
       } else if (result.emailNotVerified) {
         Alert.alert(
           'Email Not Verified',
@@ -124,7 +126,7 @@ export default function SupplierLogin() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}

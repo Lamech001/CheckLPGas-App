@@ -1,3 +1,4 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
@@ -22,6 +23,7 @@ export default function TermsOfServiceScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <AppStatusBar backgroundColor="#FFFFFF" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
           <FontAwesome5 name="chevron-left" size={18} color="#1976D2" />

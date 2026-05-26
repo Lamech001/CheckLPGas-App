@@ -1,7 +1,17 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
+import { ConsumerLiveLocationMapModal } from '@/components/supplier/ConsumerLiveLocationMapModal';
+import { OrderMessageCard } from '@/components/supplier/OrderMessageCard';
 import { auth } from '@/config/firebase';
-import { markMessagesAsRead, sendMessage, subscribeToMessages, editMessage, deleteMessage } from '@/services/chatService';
-import { formatChatDate, Message } from '@/services/types/chat';
+import {
+  deleteMessage,
+  editMessage,
+  markMessagesAsRead,
+  sendMessage,
+  subscribeToConversation,
+  subscribeToMessages,
+} from '@/services/chatService';
+import { Conversation, formatChatDate, Message } from '@/services/types/chat';
+import { isNewOrderMessage } from '@/utils/orderMessage';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -25,13 +35,27 @@ export default function SupplierChatScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const conversationId = params.conversationId as string;
-  const consumerName = params.consumerName as string || 'Customer';
-  const consumerPhone = params.consumerPhone as string || '';
+  const consumerParam = params.consumer as string | undefined;
+  const parsedConsumer = consumerParam
+    ? (() => {
+        try {
+          return JSON.parse(consumerParam) as { fullName?: string; phoneNumber?: string };
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const consumerName =
+    (params.consumerName as string) || parsedConsumer?.fullName || 'Customer';
+  const consumerPhone =
+    (params.consumerPhone as string) || parsedConsumer?.phoneNumber || '';
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [liveConversation, setLiveConversation] = useState<Conversation | null>(null);
+  const [showLocationMap, setShowLocationMap] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
@@ -69,6 +93,19 @@ export default function SupplierChatScreen() {
 
     return () => unsubscribe();
   }, [conversationId, currentUser]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const unsubscribeConversation = subscribeToConversation(conversationId, (conversation) => {
+      setLiveConversation(conversation);
+    });
+
+    return () => unsubscribeConversation();
+  }, [conversationId]);
+
+  const liveLocation = liveConversation?.consumerLiveLocation;
+  const liveLocationUpdatedAt = liveConversation?.consumerLiveLocationUpdatedAt;
 
   const handleSend = async () => {
     if (!inputText.trim() || !currentUser || !conversationId) return;
@@ -161,6 +198,7 @@ export default function SupplierChatScreen() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isMe = item.senderId === currentUser?.uid;
+    const isOrderMessage = !isMe && isNewOrderMessage(item.text);
 
     return (
       <TouchableOpacity
@@ -175,9 +213,17 @@ export default function SupplierChatScreen() {
         )}
         <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
           {!isMe && <Text style={styles.senderName}>{item.senderName}</Text>}
-          <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-            {item.text}
-          </Text>
+          {isOrderMessage ? (
+            <OrderMessageCard
+              orderText={item.text}
+              hasLiveLocation={!!liveLocation}
+              onTrackLocation={() => setShowLocationMap(true)}
+            />
+          ) : (
+            <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
+              {item.text}
+            </Text>
+          )}
           {item.isEdited && (
             <Text style={styles.editedLabel}>edited</Text>
           )}
@@ -226,7 +272,7 @@ export default function SupplierChatScreen() {
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
           <Text style={styles.emptyText}>Please sign in to chat</Text>
@@ -245,7 +291,7 @@ export default function SupplierChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 120 : 40}
     >
       <SafeAreaView style={styles.container}>
-        <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -317,6 +363,13 @@ export default function SupplierChatScreen() {
         </View>
       </View>
       </SafeAreaView>
+
+      <ConsumerLiveLocationMapModal
+        visible={showLocationMap}
+        conversationId={conversationId}
+        consumerName={consumerName}
+        onClose={() => setShowLocationMap(false)}
+      />
     </KeyboardAvoidingView>
   );
 }

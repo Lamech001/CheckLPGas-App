@@ -8,6 +8,7 @@
     "scheme": "gasaround",                        
     "userInterfaceStyle": "automatic",
     "ios": {
+      "statusBarStyle": "dark",
       "supportsTablet": true,
       "infoPlist": {
         "NSCallKitUsageDescription": "This app needs access to make phone calls to suppliers.",
@@ -15,6 +16,10 @@
       }
     },
     "android": {
+      "statusBar": {
+        "barStyle": "dark-content",
+        "backgroundColor": "#FFFFFF"
+      },
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#1A2A53",
@@ -55,7 +60,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 400,
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF",
           "dark": {

@@ -19,6 +19,14 @@ export interface Conversation {
   consumerId: string;
   consumerName: string;
   consumerPhone?: string;
+  consumerLiveLocation?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  };
+  consumerLiveLocationUpdatedAt?: Date;
+  /** True while consumer is actively sharing; false keeps last saved coords for offline lookup */
+  consumerLiveLocationSharing?: boolean;
   supplierId: string;
   supplierName: string;
   supplierEnterpriseName: string;

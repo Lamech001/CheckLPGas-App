@@ -235,7 +235,7 @@ export default function SupplierDashboardScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer} edges={['top']}>
-        <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+        <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
         <ActivityIndicator size="large" color="#1976D2" />
         <Text style={styles.loadingText}>Loading your dashboard...</Text>
       </SafeAreaView>
@@ -300,7 +300,7 @@ export default function SupplierDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <AppStatusBar backgroundColor="#FF6B35" barStyle="light-content" />
+      <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
