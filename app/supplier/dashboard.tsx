@@ -27,6 +27,8 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { subscribeToUnreadCount } from '@/services/notifications';
+
 
 interface PriceData {
   size: 6 | 13 | 19;
@@ -126,6 +128,17 @@ export default function SupplierDashboardScreen() {
     };
   }, [user]);
 
+  // Subscribe to unread notification count
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToUnreadCount(user.uid, (count) => {
+      setUnreadCount(count);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
   // Subscribe to orders count
   useEffect(() => {
     if (!user) return;
@@ -136,6 +149,7 @@ export default function SupplierDashboardScreen() {
 
     return () => unsubscribe();
   }, [user]);
+
 
   const loadSupplierData = async () => {
     if (!user) return;

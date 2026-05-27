@@ -61,8 +61,10 @@ export default function SupplierOrdersScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
+    // Spinner for real-time subscription; stop refresh after a short delay
     setTimeout(() => setRefreshing(false), 1000);
   };
+
 
   const handleOrderPress = (conversation: Conversation) => {
     router.push({
@@ -331,9 +333,14 @@ export default function SupplierOrdersScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading orders...</Text>
+          {/* Inline spinner-style loading (no blocking full-text UX) */}
+          <View style={styles.spinnerButton}>
+            <Text style={styles.spinnerText}>Loading...</Text>
+          </View>
+
         </View>
       ) : conversations.length === 0 ? (
+
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="clipboard-list" size={64} color="#ddd" />
           <Text style={styles.emptyTitle}>No Orders Yet</Text>
@@ -404,6 +411,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
+  spinnerButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  spinnerText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
+  },
+
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',

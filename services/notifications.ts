@@ -74,13 +74,22 @@ export const subscribeToUnreadCount = (
     where('read', '==', false)
   );
 
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    const count = snapshot.size;
-    onCount(count);
-  });
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const count = snapshot.size;
+      onCount(count);
+    },
+    (error) => {
+      console.error('[Notifications] subscribeToUnreadCount error:', error);
+      onCount(0);
+    }
+  );
 
   return unsubscribe;
 };
+
+
 
 // Mark notification as read
 export const markNotificationAsRead = async (notificationId: string): Promise<void> => {

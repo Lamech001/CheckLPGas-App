@@ -27,17 +27,20 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type OrderStep = 'cylinder_size' | 'gas_type' | 'quantity' | 'address' | 'confirm';
+type OrderStep = 'cylinder_size' | 'gas_type' | 'confirm';
 type GasType = 'LPG' | 'BioGas' | 'Natural Gas' | 'Cooking Gas';
 type CylinderSize = '6kg' | '13kg' | '19kg';
 
+type Coords = { latitude: number; longitude: number };
 
 interface OrderData {
   cylinderSize: CylinderSize | null;
   gasType: GasType | null;
   quantity: string;
   address: string;
+  location?: Coords;
 }
+
 
 interface ChatMessage {
   id: string;
@@ -53,10 +56,9 @@ const GAS_TYPES: GasType[] = ['LPG', 'BioGas', 'Natural Gas', 'Cooking Gas'];
 const STEP_PROMPTS: Record<OrderStep, string> = {
   cylinder_size: "Select cylinder size",
   gas_type: "Select type of gas",
-  quantity: "Enter quantity",
-  address: "Provide delivery address or location",
   confirm: "Confirm order",
 };
+
 
 export default function OrderScreen() {
   const router = useRouter();
@@ -70,9 +72,10 @@ export default function OrderScreen() {
   const [orderData, setOrderData] = useState<OrderData>({
     cylinderSize: null,
     gasType: null,
-    quantity: '',
+    quantity: '1',
     address: '',
   });
+
   const [currentStep, setCurrentStep] = useState<OrderStep>('cylinder_size');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -105,6 +108,7 @@ export default function OrderScreen() {
       // Keep last saved location in Firestore when the app closes or user goes offline.
     };
   }, []);
+
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -187,53 +191,94 @@ export default function OrderScreen() {
     }, 300);
   };
 
-  const submitGasType = () => {
+const submitGasType = () => {
     const gasType = inputText.trim();
     if (!gasType) {
       Alert.alert('Invalid Gas Type', 'Please enter the type of gas you need');
       return;
     }
-    setOrderData(prev => ({ ...prev, gasType: gasType as GasType }));
+
+    setOrderData(prev => ({
+      ...prev,
+      gasType: gasType as GasType,
+      quantity: '1',
+    }));
+
     addMessage(`✓ Gas type: ${gasType}`, [], false);
     setInputText('');
+
     setTimeout(() => {
-      addMessage(STEP_PROMPTS.quantity + ':', ['1', '2', '3', '4', '5']);
-      setCurrentStep('quantity');
+      startAutoFillDeliveryLocation();
     }, 300);
   };
 
-  const handleQuantityInput = (qty: string) => {
-    setInputText(qty);
-  };
-
-  const submitQuantity = () => {
-    const qty = inputText.trim();
-    if (!qty || parseInt(qty) < 1) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid quantity number');
-      return;
+  const reverseGeocodeToPlaceName = async (latitude: number, longitude: number) => {
+    try {
+      const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (addresses && addresses.length > 0) {
+        const a = addresses[0] as any;
+        const parts = [
+          a.name,
+          a.street,
+          a.city,
+          a.region,
+          a.country,
+        ].filter(Boolean);
+        const composed = parts.join(', ').trim();
+        if (composed) return composed;
+      }
+    } catch {
+      // ignore; we'll fallback
     }
-    setOrderData(prev => ({ ...prev, quantity: qty }));
-    addMessage(`✓ Quantity: ${qty} cylinder(s)`, [], false);
-    setInputText('');
-    setTimeout(() => {
-      addMessage(STEP_PROMPTS.address + ':');
-      setCurrentStep('address');
-    }, 300);
+
+    return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
   };
 
-  const submitAddress = () => {
-    const addr = inputText.trim();
-    if (!addr) {
-      Alert.alert('Invalid Address', 'Please provide a delivery address');
-      return;
+  const startAutoFillDeliveryLocation = async () => {
+    setCurrentStep('confirm');
+
+    addMessage('📍 Capturing your delivery location...', [], true);
+
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      const granted = permission.status === 'granted';
+      if (!granted) {
+        setLocationPermission('denied');
+        Alert.alert('Permission Required', 'Location permission is needed to set delivery location.');
+        return;
+      }
+
+      setLocationPermission('granted');
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+
+      setOrderLocation(coords);
+      const place = await reverseGeocodeToPlaceName(coords.latitude, coords.longitude);
+
+      setOrderData(prev => ({
+        ...prev,
+        address: place,
+        location: coords,
+        quantity: '1',
+      }));
+
+      addMessage(`✓ Delivery: ${place}`, [], false);
+      setTimeout(() => {
+        showConfirmation();
+      }, 200);
+    } catch (error) {
+      console.error('Auto-fill delivery location error:', error);
+      Alert.alert('Error', 'Unable to capture your delivery location.');
     }
-    setOrderData(prev => ({ ...prev, address: addr }));
-    addMessage(`✓ Delivery address: ${addr}`, [], false);
-    setInputText('');
-    setTimeout(() => {
-      showConfirmation();
-    }, 300);
   };
+
 
   const showConfirmation = () => {
     const { cylinderSize, gasType, quantity, address } = orderData;
@@ -441,7 +486,8 @@ export default function OrderScreen() {
   };
 
   const handleStartOver = () => {
-    setOrderData({ cylinderSize: null, gasType: null, quantity: '', address: '' });
+    setOrderData({ cylinderSize: null, gasType: null, quantity: '1', address: '' });
+
     setMessages([{
       id: 'welcome',
       isSystem: true,
@@ -451,6 +497,7 @@ export default function OrderScreen() {
     setCurrentStep('cylinder_size');
     setInputText('');
   };
+
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     if (item.isSystem) {
@@ -500,11 +547,13 @@ export default function OrderScreen() {
         break;
       case 'gas_type':
         if (GAS_TYPES.includes(option as GasType)) {
-          // Selecting a gas type sets the input and proceeds to quantity step
-          setOrderData(prev => ({ ...prev, gasType: option as GasType }));
+          // Selecting a gas type proceeds to auto-fill delivery location
+          setOrderData(prev => ({ ...prev, gasType: option as GasType, quantity: '1' }));
           addMessage(`✓ Gas type: ${option}`, [], false);
-          addMessage(STEP_PROMPTS.quantity + ':', ['1', '2', '3', '4', '5']);
-          setCurrentStep('quantity');
+          setInputText('');
+          setTimeout(() => {
+            startAutoFillDeliveryLocation();
+          }, 300);
         }
         break;
       case 'confirm':
@@ -517,11 +566,6 @@ export default function OrderScreen() {
     }
   };
 
-  const handleQuickReply = (value: string) => {
-    if (currentStep === 'quantity') {
-      setInputText(value);
-    }
-  };
 
   return (
     <KeyboardAvoidingView
@@ -549,15 +593,18 @@ export default function OrderScreen() {
 
         {/* Progress Bar */}
         <View style={styles.progressContainer}>
-          {(['cylinder_size', 'gas_type', 'quantity', 'address'] as OrderStep[]).map((step, idx) => (
+          {(['cylinder_size', 'gas_type'] as OrderStep[]).map((step, idx) => (
+
             <View key={step} style={styles.progressItem}>
               <View style={[
                 styles.progressDot,
-                (['cylinder_size', 'gas_type', 'quantity', 'address', 'confirm'] as OrderStep[]).indexOf(currentStep) >= idx
+                (['cylinder_size', 'gas_type', 'confirm'] as OrderStep[]).indexOf(currentStep) >= idx
                   ? styles.progressDotActive
                   : null
               ]} />
-              {idx < 3 && <View style={styles.progressLine} />}
+
+              {idx < 1 && <View style={styles.progressLine} />}
+
             </View>
           ))}
         </View>
@@ -606,30 +653,15 @@ export default function OrderScreen() {
               )}
             </View>
           )}
-          {currentStep === 'quantity' && (
-            <View style={styles.quickReplies}>
-              {['1', '2', '3', '4', '5'].map(num => (
-                <TouchableOpacity
-                  key={num}
-                  style={styles.quickReplyBtn}
-                  onPress={() => handleQuickReply(num)}
-                >
-                  <Text style={styles.quickReplyText}>{num}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
               placeholder={
                 currentStep === 'gas_type'
                   ? 'Enter gas type (e.g., Pro,K-gas, Afrigas)...'
-                  : currentStep === 'quantity'
-                  ? 'Enter quantity...'
-                  : currentStep === 'address'
-                  ? 'Enter delivery address...'
                   : 'Type your answer...'
+
               }
               value={inputText}
               onChangeText={setInputText}
@@ -640,8 +672,7 @@ export default function OrderScreen() {
               style={[styles.sendButton, (!inputText.trim() || isSubmitting) && styles.sendButtonDisabled]}
               onPress={() => {
                 if (currentStep === 'gas_type') submitGasType();
-                else if (currentStep === 'quantity') submitQuantity();
-                else if (currentStep === 'address') submitAddress();
+
               }}
               disabled={!inputText.trim() || isSubmitting}
             >
