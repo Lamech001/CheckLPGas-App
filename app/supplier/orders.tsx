@@ -1,10 +1,10 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { auth } from '@/config/firebase';
-import { confirmDelivery, subscribeToSupplierConversations } from '@/services/chatService';
+import { deleteConversation, subscribeToSupplierConversations } from '@/services/chatService';
 import { formatMessageTime, type Conversation } from '@/services/types/chat';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState, useCallback, memo, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     Alert,
     FlatList,
@@ -98,14 +98,24 @@ export default function SupplierOrdersScreen() {
   const handleMarkDelivered = (conversation: Conversation) => {
     Alert.alert(
       'Mark as Delivered',
-      `Complete this order for ${conversation.consumerName}?`,
+      `Complete this order for ${conversation.consumerName}? This will remove the order and its messages.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm',
           onPress: async () => {
-            const result = await confirmDelivery(conversation.id);
+            // Optimistically remove from the list; the order is permanently
+            // deleted from Firestore to keep costs down.
+            const previous = conversationsRef.current;
+            const next = previous.filter((c) => c.id !== conversation.id);
+            conversationsRef.current = next;
+            setConversations(next);
+
+            const result = await deleteConversation(conversation.id);
             if (!result.success) {
+              // Restore on failure
+              conversationsRef.current = previous;
+              setConversations(previous);
               Alert.alert('Error', result.error || 'Failed to mark as delivered');
             }
           }
@@ -131,9 +141,6 @@ export default function SupplierOrdersScreen() {
   };
 
   const getOrderStatus = (conversation: Conversation): { label: string; color: string } => {
-    if (conversation.status === 'delivered') {
-      return { label: 'Delivered', color: '#9C27B0' };
-    }
     if (conversation.unreadCount > 0) {
       return { label: 'New Order', color: '#4CAF50' };
     }

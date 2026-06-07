@@ -2,6 +2,7 @@ import { db } from '@/config/firebase';
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   getDoc,
@@ -13,9 +14,10 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   limit,
 } from 'firebase/firestore';
-import { Conversation, ConversationStatus, CreateConversationData, Message, SendMessageData } from './types/chat';
+import { Conversation, CreateConversationData, Message, SendMessageData } from './types/chat';
 
 const CONVERSATIONS_COLLECTION = 'conversations';
 const MESSAGES_COLLECTION = 'messages';
@@ -542,44 +544,38 @@ export const deleteMessage = async (
   }
 };
 
-// Mark a conversation as delivered (replaces the old deleteConversation)
-export const confirmDelivery = async (
+// Hard-delete a conversation and all of its messages once the order is
+// delivered. This permanently removes the documents from Firestore to keep
+// storage/read costs down (messages are the bulk of the documents, so we
+// delete them too rather than leaving orphaned docs behind).
+export const deleteConversation = async (
   conversationId: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
-    await updateDoc(conversationRef, {
-      status: 'delivered' as ConversationStatus,
-      deliveredAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    return { success: true };
-  } catch (error: any) {
-    console.error('Confirm delivery error:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to confirm delivery.',
-    };
-  }
-};
+    // Delete all messages belonging to this conversation, batched to stay
+    // under Firestore's 500-write limit per batch.
+    const messagesQuery = query(
+      collection(db, MESSAGES_COLLECTION),
+      where('conversationId', '==', conversationId)
+    );
+    const messagesSnapshot = await getDocs(messagesQuery);
 
-// Reopen a delivered conversation
-export const reopenConversation = async (
-  conversationId: string
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
-    await updateDoc(conversationRef, {
-      status: 'active' as ConversationStatus,
-      deliveredAt: null,
-      updatedAt: serverTimestamp(),
-    });
+    const docs = messagesSnapshot.docs;
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + 450).forEach((messageDoc) => batch.delete(messageDoc.ref));
+      await batch.commit();
+    }
+
+    // Delete the conversation document itself.
+    await deleteDoc(doc(db, CONVERSATIONS_COLLECTION, conversationId));
+
     return { success: true };
   } catch (error: any) {
-    console.error('Reopen conversation error:', error);
+    console.error('Delete conversation error:', error);
     return {
       success: false,
-      error: error.message || 'Failed to reopen conversation.',
+      error: error.message || 'Failed to delete conversation.',
     };
   }
 };
