@@ -50,7 +50,7 @@ export default function ConversationsScreen() {
 
   const handleOrderPress = (conversation: Conversation) => {
     router.push({
-      pathname: '/consumer/order',
+      pathname: '/consumer/chat',
       params: { 
         conversationId: conversation.id,
         supplier: JSON.stringify({

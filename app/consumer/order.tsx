@@ -40,7 +40,6 @@ interface ChatMessage {
 }
 
 const CYLINDER_SIZES: CylinderSize[] = ['6kg', '13kg', '25kg'];
-const GAS_TYPES: GasType[] = ['LPG', 'BioGas', 'Natural Gas', 'Cooking Gas'];
 
 const STEP_PROMPTS: Record<OrderStep, string> = {
   cylinder_size: "Select cylinder size",
@@ -296,11 +295,6 @@ export default function OrderScreen() {
       case 'cylinder_size':
         if (CYLINDER_SIZES.includes(option as CylinderSize)) {
           handleCylinderSelection(option as CylinderSize);
-        }
-        break;
-      case 'gas_type':
-        if (GAS_TYPES.includes(option as GasType)) {
-          handleGasTypeSelection(option as GasType);
         }
         break;
       case 'confirm':

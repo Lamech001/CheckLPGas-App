@@ -192,35 +192,16 @@ export default function SupplierOrderScreen() {
     );
   };
 
-  const handleCall = async () => {
-    if (!consumerPhone) return;
-
-    try {
-      // Request phone call permission (expo-permissions)
-      const { status } = await (async () => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const Permissions = require('expo-permissions');
-          return Permissions.askAsync(Permissions.CALL_PHONE);
-        } catch {
-          // If expo-permissions is unavailable, treat as denied and fall back to opening the dialer
-          return { status: 'denied' };
-        }
-      })();
-
-      if (status === 'granted') {
-        Linking.openURL(`tel:${consumerPhone}`);
-      } else {
-        Alert.alert(
-          'Permission Required',
-          'Phone call permission is required to call customers. Please enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error) {
-      // Fallback for devices that don't support permission checking
-      Linking.openURL(`tel:${consumerPhone}`);
+  const handleCall = () => {
+    if (!consumerPhone) {
+      Alert.alert('No Phone Number', 'This customer has not provided a phone number.');
+      return;
     }
+
+    // Opening the dialer via a tel: link does not require any runtime permission.
+    Linking.openURL(`tel:${consumerPhone}`).catch(() => {
+      Alert.alert('Error', 'Unable to open the phone dialer.');
+    });
   };
 
   if (!currentUser) {

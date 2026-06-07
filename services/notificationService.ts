@@ -138,7 +138,11 @@ export const sendNewOrderNotification = async (
   }
 ): Promise<void> => {
   try {
-    // 1. Save notification to Firestore for supplier
+    // Persist the notification to Firestore for the supplier to read. This runs
+    // on the consumer's device, so we must NOT fire a local notification here —
+    // that would alert the consumer who just placed the order, not the supplier.
+    // Cross-device delivery to the supplier requires a server/Cloud Function that
+    // sends to the supplier's stored push token.
     const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
 
     await addDoc(collection(db, 'notifications'), {
@@ -153,13 +157,6 @@ export const sendNewOrderNotification = async (
       },
       createdAt: serverTimestamp(),
     });
-
-    // 2. Trigger local notification if app is open (supplier is active)
-    await sendLocalNotification(
-      'New Order Received!',
-      `${orderDetails.customerName} ordered ${orderDetails.quantity}x ${orderDetails.cylinderSize} ${orderDetails.gasType}`,
-      { type: 'new_order', supplierId }
-    );
   } catch (error) {
     console.error('[Notifications] Error sending new order notification:', error);
   }
