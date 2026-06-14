@@ -64,21 +64,31 @@ export const ConsumerProfile: React.FC<ConsumerProfileProps> = ({ visible, onClo
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        const data = userDoc.data();
+        const data = userDoc.data() as any;
         setProfile({
           fullName: data.displayName || user.displayName || 'N/A',
           email: user.email || 'N/A',
           phoneNumber: data.phoneNumber || 'N/A',
           location: data.location || 'N/A',
           role: data.role || 'consumer',
-          createdAt: data.createdAt?.toDate?.()?.toLocaleDateString?.() || 'N/A',
+          createdAt: (() => {
+            try {
+              const d = data?.createdAt;
+              // Firestore Timestamp has toDate(); handle strings/undefined safely
+              if (d && typeof d.toDate === 'function') return d.toDate().toLocaleDateString();
+              if (typeof d === 'string') return d;
+              return 'N/A';
+            } catch {
+              return 'N/A';
+            }
+          })(),
         });
       } else {
         // Fallback to Auth data if Firestore doc doesn't exist
         setProfile({
           fullName: user.displayName || 'N/A',
           email: user.email || 'N/A',
-          phoneNumber: 'N/A',
+          phoneNumber: user.phoneNumber || 'N/A',
           location: 'N/A',
           role: 'consumer',
           createdAt: 'N/A',
@@ -176,11 +186,6 @@ export const ConsumerProfile: React.FC<ConsumerProfileProps> = ({ visible, onClo
                 />
               </View>
 
-              {/* Edit Button */}
-              <TouchableOpacity style={styles.editButton}>
-                <FontAwesome5 name="edit" size={16} color="#fff" style={styles.editIcon} />
-                <Text style={styles.editButtonText}>Edit Profile</Text>
-              </TouchableOpacity>
             </ScrollView>
           ) : error ? (
             <View style={styles.errorContainer}>
@@ -325,15 +330,6 @@ const styles = StyleSheet.create({
     fontSize: AppSizes.fontXLarge,
     color: AppColors.textPrimary,
     fontWeight: '500',
-  },
-  editButton: {
-    backgroundColor: AppColors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: AppSizes.spacingLarge,
-    borderRadius: AppSizes.radiusLarge,
-    marginBottom: AppSizes.spacingXLarge,
   },
   editIcon: {
     marginRight: AppSizes.spacingSmall,

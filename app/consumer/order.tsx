@@ -14,6 +14,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState, useRef, useEffect } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     Animated,
     FlatList,
@@ -66,9 +67,11 @@ export default function OrderScreen() {
   const supplierData = params.supplier ? JSON.parse(params.supplier as string) as SupplierWithDistance : null;
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const currentUser = auth.currentUser;
+
   const [orderData, setOrderData] = useState<OrderData>({
     cylinderSize: null,
     gasType: null,
@@ -88,11 +91,22 @@ export default function OrderScreen() {
   const [inputText, setInputText] = useState('');
   const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [orderLocation, setOrderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const [isLocationSharingPending, setIsLocationSharingPending] = useState(false);
   const [conversationId, setConversationId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
+
+  const isLoadingOverlay = isGeneratingSummary || isSubmitting || isLocationSharingPending;
+  const busyMessage = isGeneratingSummary
+    ? 'Preparing your order summary…'
+    : isSubmitting
+      ? 'Submitting your order…'
+      : isLocationSharingPending
+        ? 'Sharing your live location…'
+        : '';
   const conversationIdRef = useRef<string>('');
 
   useEffect(() => {
@@ -185,10 +199,12 @@ export default function OrderScreen() {
   const handleCylinderSelection = (size: CylinderSize) => {
     setOrderData(prev => ({ ...prev, cylinderSize: size }));
     addMessage(`✓ I need a ${size} cylinder`, [], false);
+    setCurrentStep('gas_type');
+    setInputText('');
     setTimeout(() => {
-      addMessage('Enter LPG brand name (e.g., PRO Gas, K-Gas, Afrigas, Gas Plex):');
-      setCurrentStep('gas_type');
-    }, 300);
+      addMessage('Enter the gas brand name (e.g., PRO Gas, K-Gas, Afrigas, Gas Plex):');
+      inputRef.current?.focus();
+    }, 250);
   };
 
 const submitGasType = () => {
@@ -204,12 +220,12 @@ const submitGasType = () => {
       quantity: '1',
     }));
 
-    addMessage(`✓ Gas type: ${gasType}`, [], false);
+    addMessage(`✓ Gas Brand: ${gasType}`, [], false);
     setInputText('');
 
     setTimeout(() => {
       startAutoFillDeliveryLocation();
-    }, 300);
+    }, 1000);
   };
 
   const reverseGeocodeToPlaceName = async (latitude: number, longitude: number) => {
@@ -236,14 +252,16 @@ const submitGasType = () => {
 
   const startAutoFillDeliveryLocation = async () => {
     setCurrentStep('confirm');
+    setIsGeneratingSummary(true);
 
-    addMessage('📍 Capturing your delivery location...', [], true);
+    addMessage('📍 Capturing your delivery location and preparing your order summary...', [], true);
 
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       const granted = permission.status === 'granted';
       if (!granted) {
         setLocationPermission('denied');
+        setIsGeneratingSummary(false);
         Alert.alert('Permission Required', 'Location permission is needed to set delivery location.');
         return;
       }
@@ -262,27 +280,33 @@ const submitGasType = () => {
       setOrderLocation(coords);
       const place = await reverseGeocodeToPlaceName(coords.latitude, coords.longitude);
 
-      setOrderData(prev => ({
-        ...prev,
+      const nextOrderData: OrderData = {
+        ...orderData,
         address: place,
         location: coords,
         quantity: '1',
-      }));
+      };
+
+      setOrderData(nextOrderData);
 
       addMessage(`✓ Delivery: ${place}`, [], false);
+      setIsGeneratingSummary(false);
       setTimeout(() => {
-        showConfirmation();
-      }, 200);
+        showConfirmation(nextOrderData);
+      }, 1000);
     } catch (error) {
+      setIsGeneratingSummary(false);
       console.error('Auto-fill delivery location error:', error);
       Alert.alert('Error', 'Unable to capture your delivery location.');
     }
   };
 
 
-  const showConfirmation = () => {
-    const { cylinderSize, gasType, quantity, address } = orderData;
-    const confirmationText = `\n📋 Order Summary:\n━━━━━━━━━━━━━━━\n🔵 Cylinder Size: ${cylinderSize}\n🟡 Gas Type: ${gasType}\n🔢 Quantity: ${quantity}\n📍 Delivery: ${address}\n━━━━━━━━━━━━━━━\n\nReady to submit this order?`;
+  const showConfirmation = (snapshot: OrderData = orderData) => {
+    const { cylinderSize, gasType, quantity, address } = snapshot;
+    const brandLabel = gasType && gasType.trim() ? gasType.trim() : '—';
+    const deliveryLabel = address && address.trim() ? address.trim() : '—';
+    const confirmationText = `\n📋 Order Summary:\n━━━━━━━━━━━━━━━\n🔵 Cylinder Size: ${cylinderSize || '—'}\n🟡 Gas Brand: ${brandLabel}\n🔢 Quantity: ${quantity || '1'}\n📍 Delivery: ${deliveryLabel}\n━━━━━━━━━━━━━━━\n\nReady to submit this order?`;
     addMessage(confirmationText, ['✓ Confirm Order', '✗ Start Over']);
     setCurrentStep('confirm');
   };
@@ -293,46 +317,44 @@ const submitGasType = () => {
     setIsSubmitting(true);
     addMessage('⏳ Submitting your order...', [], false);
 
-    const { cylinderSize, gasType, quantity, address } = orderData;
-    const orderMessage = `NEW ORDER:\n• Cylinder Size: ${cylinderSize}\n• Gas Type: ${gasType}\n• Quantity: ${quantity}\n• Delivery Address: ${address}`;
+    try {
+      const { cylinderSize, gasType, quantity, address } = orderData;
+      const orderMessage = `NEW ORDER:\n• Cylinder Size: ${cylinderSize}\n• Gas Type: ${gasType}\n• Quantity: ${quantity}\n• Delivery Address: ${address}`;
 
-    if (conversationId) {
-      console.log('[Order] Sending message to conversation:', conversationId);
-      const msgResult = await sendMessage({
-        conversationId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || 'Consumer',
-        senderRole: 'consumer',
-        text: orderMessage,
-      });
-      console.log('[Order] Message sent:', msgResult.success, 'msgId:', msgResult.messageId);
+      if (conversationId) {
+        console.log('[Order] Sending message to conversation:', conversationId);
+        const msgResult = await sendMessage({
+          conversationId,
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName || 'Consumer',
+          senderRole: 'consumer',
+          text: orderMessage,
+        });
+        console.log('[Order] Message sent:', msgResult.success, 'msgId:', msgResult.messageId);
 
-      // Notify supplier about new order
-      // Ensure we notify using the supplierId from the conversation doc
-      // (not the supplier object coming from route params).
-      await sendNewOrderNotification(
-        supplierData.uid,
-        supplierData.enterpriseName,
-        {
-          cylinderSize: cylinderSize || '',
-          gasType: gasType || '',
-          quantity: quantity,
-          customerName: currentUser.displayName || 'Customer',
-        },
-        conversationId
-      );
+        await sendNewOrderNotification(
+          supplierData.uid,
+          supplierData.enterpriseName,
+          {
+            cylinderSize: cylinderSize || '',
+            gasType: gasType || '',
+            quantity: quantity,
+            customerName: currentUser.displayName || 'Customer',
+          },
+          conversationId
+        );
+      }
 
-      // Also ensure conversation is updated with lastMessage so supplier orders list is consistent
-      // (in case notification arrived but chat write was delayed)
-      // Note: sendMessage already updates lastMessage + supplierUnreadCount.
+      addMessage('✅ Order submitted successfully! The supplier will contact you shortly.', [], false);
+      addMessage('Share your live location so the supplier can find you easily for delivery.', [], true);
 
+      promptShareLocationAfterOrder();
+    } catch (error) {
+      console.error('Submit order error:', error);
+      Alert.alert('Error', 'Unable to submit your order right now. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
-    addMessage('✅ Order submitted successfully! The supplier will contact you shortly.', [], false);
-    addMessage('Share your live location so the supplier can find you easily for delivery.', [], true);
-
-    promptShareLocationAfterOrder();
   };
 
   const promptShareLocationAfterOrder = () => {
@@ -423,8 +445,11 @@ const submitGasType = () => {
   };
 
   const startSharingLiveLocation = async () => {
+    setIsLocationSharingPending(true);
+
     const activeConversationId = await ensureConversationId();
     if (!activeConversationId) {
+      setIsLocationSharingPending(false);
       Alert.alert('Order Not Ready', 'Please submit your order first, then share live location.');
       return;
     }
@@ -433,16 +458,21 @@ const submitGasType = () => {
     const granted = permission.status === 'granted';
     setLocationPermission(granted ? 'granted' : 'denied');
     if (!granted) {
+      setIsLocationSharingPending(false);
       Alert.alert('Permission Required', 'Location permission is needed to share live location.');
       return;
     }
 
     try {
       const saved = await pushCurrentLocation();
-      if (!saved) return;
+      if (!saved) {
+        setIsLocationSharingPending(false);
+        return;
+      }
 
+      setIsLocationSharingPending(false);
       setIsSharingLocation(true);
-      addMessage('📍 Live location is now shared with your supplier.', [], true);
+      addMessage('📍 Sharing your live location with your supplier...', [], true);
 
       locationSubscriptionRef.current = await Location.watchPositionAsync(
         {
@@ -451,6 +481,9 @@ const submitGasType = () => {
           distanceInterval: 20,
         },
         async (position) => {
+          setIsLocationSharingPending(false);
+          setIsSharingLocation(true);
+
           const now = Date.now();
           if (now - lastLocationUpdateRef.current < 8000) return;
           lastLocationUpdateRef.current = now;
@@ -473,6 +506,7 @@ const submitGasType = () => {
     } catch (error) {
       console.error('Start live location sharing error:', error);
       Alert.alert('Error', 'Unable to start live location sharing.');
+      setIsLocationSharingPending(false);
       setIsSharingLocation(false);
     }
   };
@@ -513,8 +547,9 @@ const submitGasType = () => {
                 {item.options.map((option, idx) => (
                   <TouchableOpacity
                     key={idx}
-                    style={styles.optionButton}
+                    style={[styles.optionButton, isLoadingOverlay && styles.optionButtonDisabled]}
                     onPress={() => handleOptionPress(option)}
+                    disabled={isLoadingOverlay}
                   >
                     <Text style={styles.optionText}>{option}</Text>
                   </TouchableOpacity>
@@ -574,12 +609,24 @@ const submitGasType = () => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -40}
     >
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        
+        {isLoadingOverlay && (
+          <View style={styles.loadingOverlay} pointerEvents="auto">
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.loadingText}>{busyMessage}</Text>
+            </View>
+          </View>
+        )}
+
         <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={[styles.backBtn, isLoadingOverlay && styles.backBtnDisabled]}
+            disabled={isLoadingOverlay}
+          >
             <FontAwesome5 name="arrow-left" size={20} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerInfo}>
@@ -635,8 +682,10 @@ const submitGasType = () => {
                 style={[
                   styles.liveLocationButton,
                   isSharingLocation ? styles.liveLocationButtonStop : styles.liveLocationButtonStart,
+                  isLoadingOverlay && styles.liveLocationButtonDisabled,
                 ]}
                 onPress={toggleLiveLocationSharing}
+                disabled={isLoadingOverlay}
               >
                 <FontAwesome5 name={isSharingLocation ? 'stop-circle' : 'location-arrow'} size={14} color="#fff" />
                 <Text style={styles.liveLocationButtonText}>
@@ -655,26 +704,36 @@ const submitGasType = () => {
           )}
 
           <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder={
-                currentStep === 'gas_type'
-                  ? 'Enter gas type (e.g., Pro,K-gas, Afrigas)...'
-                  : 'Type your answer...'
-
-              }
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={200}
-            />
+            <View style={styles.inputArea}>
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                placeholder={
+                  currentStep === 'gas_type'
+                    ? 'Type the gas brand (e.g. Pro Gas, K-Gas, Afrigas)...'
+                    : 'Type your answer...'
+                }
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                maxLength={200}
+                autoFocus={currentStep === 'gas_type'}
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+              {isLoadingOverlay && (
+                <View style={styles.busyRow}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                  <Text style={styles.busyText}>{busyMessage}</Text>
+                </View>
+              )}
+            </View>
             <TouchableOpacity
-              style={[styles.sendButton, (!inputText.trim() || isSubmitting) && styles.sendButtonDisabled]}
+              style={[styles.sendButton, (!inputText.trim() || isLoadingOverlay) && styles.sendButtonDisabled]}
               onPress={() => {
                 if (currentStep === 'gas_type') submitGasType();
-
               }}
-              disabled={!inputText.trim() || isSubmitting}
+              disabled={!inputText.trim() || isLoadingOverlay}
             >
               <FontAwesome5 name="arrow-right" size={20} color="#fff" />
             </TouchableOpacity>
@@ -688,6 +747,34 @@ const submitGasType = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   keyboardAvoidingRoot: { flex: 1 },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  loadingCard: {
+    width: '82%',
+    maxWidth: 320,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#1c1c1e',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   header: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#007AFF',
     paddingHorizontal: 16, paddingVertical: 16, paddingTop: 50,
@@ -735,6 +822,7 @@ const styles = StyleSheet.create({
     borderRadius: 20, marginRight: 4, marginBottom: 4,
   },
   optionText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  optionButtonDisabled: { opacity: 0.6 },
   userMessageContainer: {
     flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 16, alignItems: 'flex-end',
   },
@@ -766,14 +854,31 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff',
   },
+  inputArea: {
+    flex: 1,
+    marginRight: 8,
+  },
   input: {
-    flex: 1, backgroundColor: '#f5f5f5', borderRadius: 22, paddingHorizontal: 16,
-    paddingVertical: 10, maxHeight: 100, fontSize: 16, color: '#1c1c1e', marginRight: 8,
+    backgroundColor: '#f5f5f5', borderRadius: 22, paddingHorizontal: 16,
+    paddingVertical: 10, maxHeight: 100, fontSize: 16, color: '#1c1c1e',
+  },
+  busyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+    paddingTop: 6,
+  },
+  busyText: {
+    color: '#4a5a6a',
+    fontSize: 12,
+    fontWeight: '600',
   },
   sendButton: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: '#007AFF',
     justifyContent: 'center', alignItems: 'center',
   },
+  backBtnDisabled: { opacity: 0.6 },
   sendButtonDisabled: { backgroundColor: '#d1d1d6' },
   liveLocationContainer: {
     backgroundColor: '#f0f7ff',
@@ -810,6 +915,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  liveLocationButtonDisabled: { opacity: 0.6 },
   liveLocationMeta: {
     color: '#2d5f94',
     fontSize: 12,

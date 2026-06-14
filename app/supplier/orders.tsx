@@ -131,8 +131,8 @@ export default function SupplierOrdersScreen() {
     // Try to extract order details from message text
     const sizeMatch = text.match(/(\d+)\s*kg/i);
     const qtyMatch = text.match(/qty?u?a?n?t?i?t?y?\s*:?\s*(\d+)/i);
-    // Match "Gas type:" followed by any text until newline or pipe
-    const gasMatch = text.match(/gas\s*type\s*[:\s]*([^\n|]+)/i);
+    // Match "Gas brand:" or "Gas type:" followed by any text until newline or pipe
+    const gasMatch = text.match(/gas\s*(?:brand|type)\s*[:\s]*([^\n|]+)/i);
     const addressMatch = text.match(/(deliver[y]?|address|location)\s*:?\s*(.+)/i);
 
     return {
@@ -223,7 +223,7 @@ export default function SupplierOrdersScreen() {
               <FontAwesome5 name="cloud" size={14} color="#2196F3" />
             </View>
             <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Gas Type</Text>
+              <Text style={styles.detailLabel}>Gas Brand</Text>
               <Text style={styles.detailValue}>{orderDetails.gasType}</Text>
             </View>
           </View>

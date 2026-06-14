@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: AppSizes.spacingLarge,
-    paddingTop: 60,
+    paddingTop: 45,
     paddingBottom: AppSizes.spacingSmall,
     backgroundColor: AppColors.background,
   },
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brandText: {
-    fontSize: 18,
+    fontSize: 26,
     fontWeight: '700',
     color: AppColors.primary,
   },

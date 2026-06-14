@@ -355,6 +355,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 14,
     paddingHorizontal: 12,
+    paddingBottom: 24,
     borderRadius: 12,
     backgroundColor: '#ffebee',
     justifyContent: 'center',
