@@ -1,21 +1,21 @@
 import { auth, db } from '@/config/firebase';
 import { useTheme } from '@/contexts/ThemeContext';
+import { deleteAccount } from '@/services/authService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { doc, setDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { deleteAccount } from '@/services/authService';
-import { useRouter } from 'expo-router';
 import {
-  Alert,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 const { height } = Dimensions.get('window');

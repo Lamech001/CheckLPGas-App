@@ -5,20 +5,24 @@
 
 import { db } from '@/config/firebase';
 import {
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    setDoc,
-    updateDoc,
-    where
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where
 } from 'firebase/firestore';
+
+// Type aliases for Firebase types that may not be properly exported
+type FirestoreQueryDocumentSnapshot = any;
+type FirestoreQuerySnapshot = any;
 
 // Helper to check if error is offline-related
 const isOfflineError = (error: any): boolean => {
@@ -128,7 +132,7 @@ export const getSupplierRatings = async (
     const snapshot = await getDocs(ratingsQuery);
     const ratings: RatingData[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.forEach((doc: FirestoreQueryDocumentSnapshot) => {
       const data = doc.data() as RatingData;
       ratings.push({
         id: doc.id,
@@ -165,7 +169,7 @@ export const getSupplierRatingStats = async (
     let totalCount = 0;
     const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
 
-    snapshot.forEach((doc) => {
+    snapshot.forEach((doc: FirestoreQueryDocumentSnapshot) => {
       const data = doc.data() as RatingData;
       const rating = Math.round(data.rating);
       if (rating >= 1 && rating <= 5) {
@@ -262,14 +266,14 @@ export const subscribeToSupplierRatings = (
 
   return onSnapshot(
     ratingsQuery,
-    (snapshot) => {
+    (snapshot: FirestoreQuerySnapshot) => {
       const ratings: RatingData[] = [];
-      snapshot.forEach((doc) => {
+      snapshot.forEach((doc: FirestoreQueryDocumentSnapshot) => {
         ratings.push({ id: doc.id, ...doc.data() as RatingData });
       });
       onRatingsUpdate(ratings);
     },
-    (error) => {
+    (error: Error) => {
       console.error('[Ratings] Subscription error:', error);
       onError?.(error);
     }
@@ -319,7 +323,7 @@ export const getTopRatedSuppliers = async (
     const snapshot = await getDocs(suppliersQuery);
     const supplierIds: string[] = [];
 
-    snapshot.forEach((doc) => {
+    snapshot.forEach((doc: FirestoreQueryDocumentSnapshot) => {
       supplierIds.push(doc.id);
     });
 

@@ -1,22 +1,23 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { signInWithEmail } from '@/services/authService';
+import type { PersistentSession } from '@/services/persistenceSessionService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppStatusBar } from '@/components/AppStatusBar';
 
 export default function ConsumerLogin() {
   const router = useRouter();
@@ -60,6 +61,20 @@ export default function ConsumerLogin() {
           );
           return;
         }
+        // Persist local session marker for auto-login
+        try {
+          const { persistVerifiedSession } = await import('@/services/persistenceSessionService');
+          const sess: Omit<PersistentSession, 'createdAt' | 'updatedAt'> = {
+            role: 'consumer',
+            uid: result.user?.uid || '',
+            emailVerified: true,
+          };
+          // Fire-and-forget persistence; login already succeeded.
+          await persistVerifiedSession(sess);
+        } catch {
+          // Ignore local persistence failures.
+        }
+
         // Success haptic feedback
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         

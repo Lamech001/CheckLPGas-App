@@ -37,15 +37,17 @@ function AppContent() {
       <DeepLinkHandler>
 
         <ConnectionIndicator />
-        <Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="role-select" />
+          <Stack.Screen name="consumer/login" />
           <Stack.Screen name="consumer/signup" />
+          <Stack.Screen name="supplier/login" />
           <Stack.Screen name="supplier/signup" />
           <Stack.Screen name="supplier/dashboard" />
-          <Stack.Screen name="supplier/login" />
-          <Stack.Screen name="consumer/login" />
           <Stack.Screen name="verify-email" />
+          <Stack.Screen name="terms" />
+          <Stack.Screen name="privacy" />
           <Stack.Screen name="(tabs)" />
         </Stack>
       </DeepLinkHandler>
