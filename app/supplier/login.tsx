@@ -2,6 +2,7 @@ import { signInWithEmail } from '@/services/authService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
 import { useState } from 'react';
+import type { PersistentSession } from '@/services/persistenceSessionService';
 import {
   ActivityIndicator,
   Alert,
@@ -65,10 +66,25 @@ export default function SupplierLogin() {
           );
           return;
         }
+        // Persist correct local session marker so startup/router does not redirect to consumer.
+        try {
+          const { persistVerifiedSession } = await import('@/services/persistenceSessionService');
+          const sess: Omit<PersistentSession, 'createdAt' | 'updatedAt'> = {
+            role: 'supplier',
+            uid: result.user?.uid || '',
+            emailVerified: true,
+          };
+          // Fire-and-forget persistence; login already succeeded.
+          await persistVerifiedSession(sess);
+        } catch {
+          // Ignore local persistence failures.
+        }
+
         // INSTANT NAVIGATION: Go to supplier dashboard (orders are accessible from dashboard)
         setIsLoading(false);
         await safeReplace('/supplier/dashboard');
         return;
+
 
 
       } else if (result.emailNotVerified) {

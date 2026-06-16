@@ -17,9 +17,10 @@ export const CACHE_KEYS = {
   APP_VERSION: 'cache_app_version',
 } as const;
 
-// Cache TTL in milliseconds (default: 5 minutes for suppliers, 1 hour for profile)
+// Cache TTL in milliseconds. Supplier data is kept in local storage for offline-first use
+// and only refreshed when Firestore updates are detected.
 const DEFAULT_TTL = {
-  SUPPLIERS: 5 * 60 * 1000,      // 5 minutes
+  SUPPLIERS: Number.POSITIVE_INFINITY,
   USER_PROFILE: 60 * 60 * 1000,  // 1 hour
   USER_LOCATION: 30 * 60 * 1000, // 30 minutes
   SETTINGS: 24 * 60 * 60 * 1000, // 24 hours

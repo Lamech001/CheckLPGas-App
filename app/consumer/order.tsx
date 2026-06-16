@@ -7,6 +7,7 @@ import {
   stopConsumerLiveLocationSharing,
   updateConsumerLiveLocation,
 } from '@/services/chatService';
+import { addOrderToHistory } from '@/services/orderHistoryLocalService';
 import * as Location from 'expo-location';
 import { sendNewOrderNotification } from '@/services/notificationService';
 import { SupplierWithDistance } from '@/services/types/supplier';
@@ -132,6 +133,31 @@ export default function OrderScreen() {
     }).start();
   }, [currentStep]);
 
+  const getConsumerPhoneNumber = async (): Promise<string | undefined> => {
+    if (currentUser?.phoneNumber) {
+      return currentUser.phoneNumber;
+    }
+
+    if (!currentUser) {
+      return undefined;
+    }
+
+    try {
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        const phone = data.phoneNumber || data.phone || data.Telephone || data.tel;
+        if (typeof phone === 'string' && phone.trim().length > 0) {
+          return phone.trim();
+        }
+      }
+    } catch {
+      // Keep the order flow working even if the profile lookup is temporarily unavailable.
+    }
+
+    return undefined;
+  };
+
   const initConversation = async () => {
     if (!currentUser || !supplierData) return;
 
@@ -145,22 +171,9 @@ export default function OrderScreen() {
 
     console.log('[Order] Creating conversation with payload:', JSON.stringify(conversationPayload));
 
-    // Try to get phone from Firebase Auth first, fall back to Firestore
-    if (currentUser.phoneNumber) {
-      conversationPayload.consumerPhone = currentUser.phoneNumber;
-    } else {
-      // Fetch from Firestore users collection
-      try {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.phoneNumber) {
-            conversationPayload.consumerPhone = userData.phoneNumber;
-          }
-        }
-      } catch (e) {
-        console.log('Could not fetch phone from Firestore');
-      }
+    const phoneNumber = await getConsumerPhoneNumber();
+    if (phoneNumber) {
+      conversationPayload.consumerPhone = phoneNumber;
     }
 
     console.log('[Order][Debug] currentUser.uid:', currentUser.uid);
@@ -348,6 +361,24 @@ const submitGasType = () => {
       addMessage('✅ Order submitted successfully! The supplier will contact you shortly.', [], false);
       addMessage('Share your live location so the supplier can find you easily for delivery.', [], true);
 
+      // Persist order summary locally for the consumer Order History screen.
+      // This is offline-first and can be deleted by the user.
+      try {
+        await addOrderToHistory({
+          userId: currentUser.uid,
+          order: {
+            orderId: conversationId || `local-${Date.now()}`,
+            cylinderSize: (cylinderSize || 'Unknown') as any,
+            gasType: (gasType || '—') as any,
+            quantity: Number(quantity || 1),
+            deliveryAddress: address || '',
+            status: 'delivered',
+          },
+        });
+      } catch {
+        // never break ordering flow if local persistence fails
+      }
+
       promptShareLocationAfterOrder();
     } catch (error) {
       console.error('Submit order error:', error);
@@ -398,9 +429,12 @@ const submitGasType = () => {
     if (conversationIdRef.current) return conversationIdRef.current;
     if (!currentUser || !supplierData) return null;
 
+    const phoneNumber = await getConsumerPhoneNumber();
+
     const result = await getOrCreateConversation({
       consumerId: currentUser.uid,
       consumerName: currentUser.displayName || 'Consumer',
+      consumerPhone: phoneNumber,
       supplierId: supplierData.uid,
       supplierName: supplierData.fullName || supplierData.enterpriseName,
       supplierEnterpriseName: supplierData.enterpriseName,

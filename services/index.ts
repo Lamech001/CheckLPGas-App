@@ -19,6 +19,14 @@ export {
     addFavoriteSupplier, calculateDistance, filterByCylinderSize, getCachedSuppliers as getCachedSuppliersList, getFavoriteSuppliers, getSupplierById, getSupplierCacheStats, getSuppliersByIds, getSuppliersWithinRadius, invalidateSupplierCache, isFavoriteSupplier, prefetchSupplierDetails, prefetchSuppliers, removeFavoriteSupplier, subscribeToSupplier, subscribeToSuppliers, warmSupplierCache
 } from './cachedSupplierService';
 
+export {
+  persistVerifiedSession,
+  getPersistentSession,
+  clearPersistentSession,
+  isPersistentSessionVerified,
+} from './persistenceSessionService';
+
+
 // Image cache service
 export {
     batchCacheImages, cacheImage, cacheSupplierLogo, clearImageCache, evictOldImages, getCachedImageUri, getImageCacheSize, getStorageImageUrl, initImageCache, prefetchImages, useCachedImage

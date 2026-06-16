@@ -61,15 +61,34 @@ export default function VerifyEmailScreen() {
           
           // Small delay to show success before redirect
           setTimeout(() => {
+            // Persist local session marker for offline-first startup.
+            // IMPORTANT: local marker is only set when Firebase confirms emailVerified.
+            // Note: setTimeout callback is not async; do persistence via fire-and-forget.
+            try {
+              import('@/services/persistenceSessionService')
+                .then(({ persistVerifiedSession }) =>
+                  persistVerifiedSession({
+                    role: userRole === 'supplier' ? 'supplier' : 'consumer',
+                    uid: user.uid,
+                    emailVerified: true,
+                  })
+                )
+                .catch(() => {});
+            } catch {
+              // Silent fail - navigation still happens.
+            }
+
             if (userRole === 'supplier') {
               router.replace('/supplier/dashboard');
             } else {
               router.replace('/(tabs)');
             }
+
           }, 1500);
         }
       }
     } catch (error: any) {
+
       console.error('Email verification error:', error);
       setVerificationError('Verification failed. The link may be expired or invalid.');
       setIsVerifying(false);

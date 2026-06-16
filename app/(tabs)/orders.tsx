@@ -1,11 +1,15 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { auth } from '@/config/firebase';
-import { subscribeToConsumerConversations } from '@/services/chatService';
-import { Conversation, formatMessageTime } from '@/services/types/chat';
+import {
+  deleteOrderFromHistory,
+  getAllOrdersFromHistory,
+  type LocalOrderHistoryItem,
+} from '@/services/orderHistoryLocalService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
+  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -15,79 +19,83 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function ConversationsScreen() {
+export default function OrdersHistoryScreen() {
   const router = useRouter();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const currentUser = auth.currentUser;
 
-  useEffect(() => {
+  const [orders, setOrders] = useState<LocalOrderHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadOrders = useCallback(async () => {
     if (!currentUser) {
+      setOrders([]);
       setLoading(false);
       return;
     }
 
-    const unsubscribe = subscribeToConsumerConversations(currentUser.uid, (updatedConversations) => {
-      setConversations(updatedConversations);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    setLoading(true);
+    const result = await getAllOrdersFromHistory(currentUser.uid);
+    if (result.success) setOrders(result.items);
+    else setOrders([]);
+    setLoading(false);
   }, [currentUser]);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    void loadOrders().finally(() => setRefreshing(false));
   };
 
-  const handleOrderPress = (conversation: Conversation) => {
-    router.push({
-      pathname: '/consumer/order',
-      params: { 
-        conversationId: conversation.id,
-        supplier: JSON.stringify({
-          uid: conversation.supplierId,
-          enterpriseName: conversation.supplierEnterpriseName,
-          fullName: conversation.supplierName,
-        })
-      }
-    });
+  const handleDelete = (order: LocalOrderHistoryItem) => {
+    if (!currentUser) return;
+
+    Alert.alert('Delete order', 'This order will be removed from your Order History on this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const res = await deleteOrderFromHistory({ userId: currentUser.uid, orderId: order.orderId });
+          if (res.success) setOrders(res.items);
+        },
+      },
+    ]);
   };
 
-  const renderConversation = ({ item }: { item: Conversation }) => {
-    const hasUnread = item.unreadCount > 0;
-    const lastMessage = item.lastMessage;
-
+  const renderItem = ({ item }: { item: LocalOrderHistoryItem }) => {
     return (
-      <TouchableOpacity 
-        style={[styles.conversationCard, hasUnread && styles.unreadCard]} 
-        onPress={() => handleOrderPress(item)}
-      >
-        <View style={styles.avatar}>
-          <FontAwesome5 name="store" size={24} color="#fff" />
-        </View>
-        <View style={styles.conversationInfo}>
-          <View style={styles.nameRow}>
-            <Text style={[styles.supplierName, hasUnread && styles.unreadText]} numberOfLines={1}>
-              {item.supplierEnterpriseName}
+      <View style={styles.card}>
+        <View style={styles.cardTopRow}>
+          <View style={styles.leftCol}>
+            <Text style={styles.title} numberOfLines={1}>
+              {item.cylinderSize} • {item.quantity} Qty • {item.gasType || '—'}
             </Text>
-            {lastMessage && (
-              <Text style={styles.timeText}>
-                {formatMessageTime(lastMessage.timestamp)}
-              </Text>
-            )}
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {item.deliveryAddress}
+            </Text>
           </View>
-          <Text style={[styles.lastMessage, hasUnread && styles.unreadMessage]} numberOfLines={1}>
-            {lastMessage ? lastMessage.text : 'No messages yet'}
+          <TouchableOpacity
+            onPress={() => handleDelete(item)}
+            style={styles.deleteBtn}
+            accessibilityRole="button"
+          >
+            <FontAwesome5 name="trash" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.metaRow}>
+          <Text style={styles.metaText}>
+            Status: {item.status || '—'}
+          </Text>
+          <Text style={styles.metaText}>
+            {item.date ? new Date(item.date).toLocaleString() : ''}
           </Text>
         </View>
-        {hasUnread && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadCount}>{item.unreadCount}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -97,8 +105,11 @@ export default function ConversationsScreen() {
         <AppStatusBar backgroundColor="#4CAF50" barStyle="dark-content" />
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>Please sign in to view messages</Text>
-          <TouchableOpacity style={styles.signInButton} onPress={() => router.push('/consumer/login')}>
+          <Text style={styles.emptyText}>Please sign in to view your Order History</Text>
+          <TouchableOpacity
+            style={styles.signInButton}
+            onPress={() => router.push('/consumer/login')}
+          >
             <Text style={styles.signInButtonText}>Sign In</Text>
           </TouchableOpacity>
         </View>
@@ -107,23 +118,24 @@ export default function ConversationsScreen() {
   }
 
   return (
-      <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <AppStatusBar backgroundColor="#4CAF50" barStyle="dark-content" />
+
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Orders</Text>
-        <Text style={styles.headerSubtitle}>{conversations.length} order threads</Text>
+        <Text style={styles.headerTitle}>Order History</Text>
+        <Text style={styles.headerSubtitle}>{orders.length} total orders on this device</Text>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading conversations...</Text>
+          <Text style={styles.loadingText}>Loading your orders…</Text>
         </View>
-      ) : conversations.length === 0 ? (
+      ) : orders.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <FontAwesome5 name="comments" size={64} color="#ddd" />
+          <FontAwesome5 name="history" size={64} color="#ddd" />
           <Text style={styles.emptyTitle}>No Orders Yet</Text>
           <Text style={styles.emptyText}>
-            Create your first gas order request by messaging a nearby supplier.
+            Your confirmed orders will appear here permanently. You can delete them anytime.
           </Text>
           <TouchableOpacity style={styles.browseButton} onPress={() => router.push('/(tabs)')}>
             <Text style={styles.browseButtonText}>Find Suppliers</Text>
@@ -131,9 +143,9 @@ export default function ConversationsScreen() {
         </View>
       ) : (
         <FlatList
-          data={conversations}
-          renderItem={renderConversation}
-          keyExtractor={(item) => item.id}
+          data={orders}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.orderId}
           contentContainerStyle={styles.listContainer}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
@@ -160,7 +172,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.85)',
     marginTop: 4,
   },
   loadingContainer: {
@@ -216,77 +228,53 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
   },
-  conversationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  card: {
     backgroundColor: '#fff',
-    padding: 16,
     borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  unreadCard: {
-    backgroundColor: '#f1f8e9',
-    borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  conversationInfo: {
-    flex: 1,
-  },
-  nameRow: {
+  cardTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+    gap: 12,
   },
-  supplierName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#212121',
+  leftCol: {
     flex: 1,
   },
-  unreadText: {
+  title: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#4CAF50',
+    color: '#212121',
   },
-  timeText: {
-    fontSize: 12,
-    color: '#999',
-    marginLeft: 8,
-  },
-  lastMessage: {
-    fontSize: 14,
+  subtitle: {
+    marginTop: 4,
+    fontSize: 13,
     color: '#666',
   },
-  unreadMessage: {
-    color: '#333',
-    fontWeight: '500',
-  },
-  unreadBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#f44336',
-    justifyContent: 'center',
+  deleteBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#E53935',
     alignItems: 'center',
-    marginLeft: 8,
+    justifyContent: 'center',
   },
-  unreadCount: {
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    gap: 10,
+  },
+  metaText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
+    color: '#888',
+    flex: 1,
   },
 });
+

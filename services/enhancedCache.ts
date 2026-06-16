@@ -67,11 +67,11 @@ export const CACHE_TTL = {
   },
   // Suppliers
   SUPPLIERS: {
-    LIST: 5 * 60 * 1000,        // 5 minutes
-    DETAIL: 10 * 60 * 1000,     // 10 minutes
-    NEARBY: 2 * 60 * 1000,      // 2 minutes (location-based, refresh often)
-    PRICES: 3 * 60 * 1000,      // 3 minutes (prices change)
-    FAVORITES: 60 * 60 * 1000,  // 1 hour
+    LIST: Number.POSITIVE_INFINITY,
+    DETAIL: Number.POSITIVE_INFINITY,
+    NEARBY: Number.POSITIVE_INFINITY,
+    PRICES: Number.POSITIVE_INFINITY,
+    FAVORITES: Number.POSITIVE_INFINITY,
   },
   // User
   USER: {

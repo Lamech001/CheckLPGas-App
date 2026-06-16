@@ -62,8 +62,9 @@ export const SideMenu: React.FC<SideMenuProps> = ({ visible, onClose, userName }
     { icon: 'home', label: 'Home', onPress: () => { onClose(); } },
     { icon: 'map-marker-alt', label: 'Find Suppliers', onPress: () => { onClose(); } },
     { icon: 'history', label: 'Order History', onPress: () => { 
-      Alert.alert('Coming Soon', 'Order history will be available soon!');
-      onClose(); 
+      onClose();
+      // Navigate to local AsyncStorage-backed order history (consumer only)
+      router.push('/(tabs)/orders');
     }},
     { icon: 'heart', label: 'Favorite Suppliers', onPress: () => { 
       Alert.alert('Coming Soon', 'Favorites feature coming soon!');

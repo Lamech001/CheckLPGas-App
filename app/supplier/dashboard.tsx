@@ -3,6 +3,8 @@ import { NotificationsModal } from '@/components/NotificationsModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { RatingBreakdown, StarRating } from '@/components/StarRating';
 import { auth } from '@/config/firebase';
+import { canAccessVerifiedRole } from '@/services/authVerifiedGuardService';
+
 import { subscribeToSupplierConversations } from '@/services/chatService';
 import {
     getSupplierData,
@@ -56,23 +58,47 @@ export default function SupplierDashboardScreen() {
   const [orderCount, setOrderCount] = useState(0);
   const [showRatingsModal, setShowRatingsModal] = useState(false);
 
-  // Listen for auth state changes
+  // Listen for auth state changes + enforce verified-only access
   useEffect(() => {
     let isActive = true;
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!isActive) return;
-      setUser(currentUser);
-      setAuthLoading(false);
-      if (!currentUser) {
-        router.replace('/role-select');
+
+    const run = async () => {
+      try {
+        // Verified-only gate using local persistence marker
+        const ok = await canAccessVerifiedRole('supplier');
+        if (!ok) {
+          if (isActive) {
+            router.replace('/verify-email');
+          }
+          return;
+        }
+
+        // Now listen to Firebase auth changes
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+          if (!isActive) return;
+          setUser(currentUser);
+          setAuthLoading(false);
+          if (!currentUser) {
+            router.replace('/role-select');
+          }
+        });
+
+        // Cleanup
+        return () => unsubscribe();
+      } catch {
+        if (isActive) {
+          router.replace('/role-select');
+        }
       }
-    });
+    };
+
+    run();
 
     return () => {
       isActive = false;
-      unsubscribe();
     };
   }, [router]);
+
 
   useEffect(() => {
     if (!user) {

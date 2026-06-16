@@ -18,7 +18,7 @@ import {
   View,
 } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 interface SettingsPanelProps {
   visible: boolean;
@@ -355,7 +355,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 14,
     paddingHorizontal: 12,
-    paddingBottom: 24,
     borderRadius: 12,
     backgroundColor: '#ffebee',
     justifyContent: 'center',

@@ -2,22 +2,21 @@ import { AppStatusBar } from '@/components/AppStatusBar';
 import { ConsumerLiveLocationMapModal } from '@/components/supplier/ConsumerLiveLocationMapModal';
 import { auth } from '@/config/firebase';
 import { deleteConversation, subscribeToSupplierConversations } from '@/services/chatService';
-import { isNewOrderMessage } from '@/utils/orderMessage';
-
+import { isNewOrderMessage, parseOrderMessageDetails } from '@/utils/orderMessage';
 
 import { formatMessageTime, type Conversation } from '@/services/types/chat';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState, useCallback, memo, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    Linking,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  Linking,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,6 +27,7 @@ export default function SupplierOrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [mapConversationId, setMapConversationId] = useState<string | null>(null);
   const [mapConsumerName, setMapConsumerName] = useState<string>('Customer');
+
   const currentUser = auth.currentUser;
   const conversationsRef = useRef<Conversation[]>([]);
 
@@ -40,11 +40,18 @@ export default function SupplierOrdersScreen() {
     console.log('[Orders] Subscribing with supplierId:', currentUser.uid);
 
     const unsubscribe = subscribeToSupplierConversations(currentUser.uid, (updatedConversations) => {
-      console.log('[Orders] Received conversations:', updatedConversations.length, 'supplierId:', currentUser.uid);
+      console.log(
+        '[Orders] Received conversations:',
+        updatedConversations.length,
+        'supplierId:',
+        currentUser.uid,
+      );
+
       // Preserve existing conversations if new data is empty (network hiccup)
       if (updatedConversations.length === 0 && conversationsRef.current.length > 0) {
         return; // Keep existing data
       }
+
       conversationsRef.current = updatedConversations;
       setConversations(updatedConversations);
       setLoading(false);
@@ -53,18 +60,11 @@ export default function SupplierOrdersScreen() {
     return () => unsubscribe();
   }, [currentUser]);
 
-  useEffect(() => {
-    // Reset loading when conversations update
-    if (!loading && conversations.length > 0) return;
-  }, [conversations.length]);
-
-
   const onRefresh = () => {
     setRefreshing(true);
     // Spinner for real-time subscription; stop refresh after a short delay
     setTimeout(() => setRefreshing(false), 1000);
   };
-
 
   const handleOrderPress = (conversation: Conversation) => {
     router.push({
@@ -75,8 +75,8 @@ export default function SupplierOrdersScreen() {
           uid: conversation.consumerId,
           fullName: conversation.consumerName,
           phoneNumber: conversation.consumerPhone,
-        })
-      }
+        }),
+      },
     });
   };
 
@@ -85,22 +85,18 @@ export default function SupplierOrdersScreen() {
       Alert.alert('Error', 'No phone number available');
       return;
     }
-    
-    Alert.alert(
-      'Call Customer',
-      `Do you want to call ${phoneNumber}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Call',
-          onPress: () => {
-            Linking.openURL(`tel:${phoneNumber}`).catch(() => {
-              Alert.alert('Error', 'Unable to make phone call');
-            });
-          }
-        }
-      ]
-    );
+
+    Alert.alert('Call Customer', `Do you want to call ${phoneNumber}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Call',
+        onPress: () => {
+          Linking.openURL(`tel:${phoneNumber}`).catch(() => {
+            Alert.alert('Error', 'Unable to make phone call');
+          });
+        },
+      },
+    ]);
   };
 
   const handleMarkDelivered = (conversation: Conversation) => {
@@ -113,33 +109,28 @@ export default function SupplierOrdersScreen() {
           text: 'Confirm',
           onPress: async () => {
             // Immediately remove from UI for fast feedback
-            setConversations(prev => prev.filter(c => c.id !== conversation.id));
+            setConversations((prev) => prev.filter((c) => c.id !== conversation.id));
 
             const result = await deleteConversation(conversation.id);
             if (!result.success) {
               // Re-add on failure
-              setConversations(prev => [...prev, conversation]);
+              setConversations((prev) => [...prev, conversation]);
               Alert.alert('Error', result.error || 'Failed to mark as delivered');
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
   const parseOrderDetails = (text: string) => {
-    // Try to extract order details from message text
-    const sizeMatch = text.match(/(\d+)\s*kg/i);
-    const qtyMatch = text.match(/qty?u?a?n?t?i?t?y?\s*:?\s*(\d+)/i);
-    // Match "Gas brand:" or "Gas type:" followed by any text until newline or pipe
-    const gasMatch = text.match(/gas\s*(?:brand|type)\s*[:\s]*([^\n|]+)/i);
-    const addressMatch = text.match(/(deliver[y]?|address|location)\s*:?\s*(.+)/i);
-
+    // Use the shared parser so "Gas Brand/Type" is extracted consistently.
+    const details = parseOrderMessageDetails(text);
     return {
-      cylinderSize: sizeMatch ? `${sizeMatch[1]}kg` : 'Not specified',
-      quantity: qtyMatch ? qtyMatch[1] : '1',
-      gasType: gasMatch ? gasMatch[1].trim() : 'Not specified',
-      deliveryAddress: addressMatch ? addressMatch[2].trim() : 'Not provided',
+      cylinderSize: details.cylinderSize || 'Not specified',
+      quantity: details.quantity || '1',
+      gasType: details.gasType || 'Not specified',
+      deliveryAddress: details.deliveryAddress || 'Not provided',
     };
   };
 
@@ -147,6 +138,7 @@ export default function SupplierOrdersScreen() {
     if (conversation.unreadCount > 0) {
       return { label: 'New Order', color: '#4CAF50' };
     }
+
     if (conversation.lastMessage) {
       const msgText = conversation.lastMessage.text.toLowerCase();
       if (msgText.includes('confirmed') || msgText.includes('accepted')) {
@@ -159,6 +151,7 @@ export default function SupplierOrdersScreen() {
         return { label: 'Cancelled', color: '#f44336' };
       }
     }
+
     return { label: 'Pending', color: '#FF9800' };
   };
 
@@ -166,6 +159,7 @@ export default function SupplierOrdersScreen() {
     const hasUnread = item.unreadCount > 0;
     const lastMessage = item.lastMessage;
     const orderDetails = lastMessage ? parseOrderDetails(lastMessage.text) : parseOrderDetails('');
+
     const hasLiveLocation = !!item.consumerLiveLocation;
     const status = getOrderStatus(item);
     const orderId = `ORD-${item.id.slice(-8).toUpperCase()}`;
@@ -180,6 +174,7 @@ export default function SupplierOrdersScreen() {
               <Text style={styles.statusBadgeText}>{status.label}</Text>
             </View>
           </View>
+
           {hasUnread && (
             <View style={styles.unreadIndicator}>
               <Text style={styles.unreadCount}>{item.unreadCount} new</Text>
@@ -192,16 +187,15 @@ export default function SupplierOrdersScreen() {
           <View style={styles.avatar}>
             <FontAwesome5 name="user" size={20} color="#fff" />
           </View>
+
           <View style={styles.customerDetails}>
             <Text style={[styles.customerName, hasUnread && styles.unreadText]} numberOfLines={1}>
               {item.consumerName}
             </Text>
             <Text style={styles.customerPhone}>{item.consumerPhone || 'No phone'}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.callButtonSmall}
-            onPress={() => handleCall(item.consumerPhone)}
-          >
+
+          <TouchableOpacity style={styles.callButtonSmall} onPress={() => handleCall(item.consumerPhone)}>
             <FontAwesome5 name="phone" size={14} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -248,7 +242,7 @@ export default function SupplierOrdersScreen() {
           </Text>
         </View>
 
-        {/* Track Live Location Button (restored) */}
+        {/* Track Live Location Button */}
         <View style={styles.locationActionRow}>
           <TouchableOpacity
             style={styles.trackLocationBtn}
@@ -264,7 +258,7 @@ export default function SupplierOrdersScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Last Message Preview / Live location */}
+        {/* Last Message Preview */}
         {lastMessage && (
           <View style={styles.messagePreview}>
             {isNewOrderMessage(lastMessage.text) ? (
@@ -276,25 +270,18 @@ export default function SupplierOrdersScreen() {
                 {lastMessage.text}
               </Text>
             )}
-            <Text style={styles.messageTime}>
-              {formatMessageTime(lastMessage.timestamp)}
-            </Text>
+            <Text style={styles.messageTime}>{formatMessageTime(lastMessage.timestamp)}</Text>
           </View>
         )}
 
         {/* Action Buttons */}
         <View style={styles.actionButtonsRow}>
-          <TouchableOpacity
-            style={styles.deliveredButton}
-            onPress={() => handleMarkDelivered(item)}
-          >
+          <TouchableOpacity style={styles.deliveredButton} onPress={() => handleMarkDelivered(item)}>
             <FontAwesome5 name="check-circle" size={14} color="#fff" />
             <Text style={styles.deliveredButtonText}>Mark Delivered</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.viewButton}
-            onPress={() => handleOrderPress(item)}
-          >
+
+          <TouchableOpacity style={styles.viewButton} onPress={() => handleOrderPress(item)}>
             <Text style={styles.viewButtonText}>View</Text>
             <FontAwesome5 name="chevron-right" size={12} color="#007AFF" />
           </TouchableOpacity>
@@ -321,10 +308,12 @@ export default function SupplierOrdersScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
+
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <FontAwesome5 name="arrow-left" size={20} color="#fff" />
         </TouchableOpacity>
+
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Orders</Text>
           <Text style={styles.headerSubtitle}>{conversations.length} order threads</Text>
@@ -333,26 +322,21 @@ export default function SupplierOrdersScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          {/* Inline spinner-style loading (no blocking full-text UX) */}
           <View style={styles.spinnerButton}>
             <Text style={styles.spinnerText}>Loading...</Text>
           </View>
-
         </View>
       ) : conversations.length === 0 ? (
-
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="clipboard-list" size={64} color="#ddd" />
           <Text style={styles.emptyTitle}>No Orders Yet</Text>
-          <Text style={styles.emptyText}>
-            Orders from customers will appear here.
-          </Text>
+          <Text style={styles.emptyText}>Orders from customers will appear here.</Text>
         </View>
       ) : (
         <FlatList
           data={conversations}
           renderItem={renderConversation}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(it) => it.id}
           contentContainerStyle={styles.listContainer}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
@@ -406,10 +390,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
   },
   spinnerButton: {
     paddingHorizontal: 24,
@@ -572,9 +552,6 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#eee',
   },
-  detailItemLast: {
-    borderRightWidth: 0,
-  },
   detailIcon: {
     width: 32,
     height: 32,
@@ -618,20 +595,6 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
   },
-  messagePreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#f9f9f9',
-  },
-  messagePreviewText: {
-    fontSize: 13,
-    color: '#666',
-    flex: 1,
-    marginRight: 10,
-  },
   locationActionRow: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -647,12 +610,25 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    marginRight: 0,
   },
   trackLocationBtnText: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  messagePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#f9f9f9',
+  },
+  messagePreviewText: {
+    fontSize: 13,
+    color: '#666',
+    flex: 1,
+    marginRight: 10,
   },
   messageTime: {
     fontSize: 11,
@@ -692,3 +668,4 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+

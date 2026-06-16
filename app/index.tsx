@@ -11,17 +11,38 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<'consumer' | 'supplier' | null>(null);
+  const [bootResolved, setBootResolved] = useState(false);
 
   useEffect(() => {
-    // Quick app initialization - under 2 seconds
-    const timer = setTimeout(() => {
+    const boot = async () => {
+      // Small delay keeps UX consistent with existing splash.
+      await new Promise((r) => setTimeout(r, 200));
+
+      try {
+        const { getPersistentSession } = await import('@/services/persistenceSessionService');
+        const session = await getPersistentSession();
+
+        if (session?.emailVerified && session.uid && session.role === 'consumer') {
+          router.replace('/(tabs)');
+          return;
+        }
+        if (session?.emailVerified && session.uid && session.role === 'supplier') {
+          router.replace('/supplier/dashboard');
+          return;
+        }
+      } catch {
+        // ignore; fall through to role selection
+      }
+
       setIsLoading(false);
-    }, 1200);
+      setBootResolved(true);
+    };
 
-    return () => clearTimeout(timer);
-  }, []);
+    boot();
+  }, [router]);
 
-  if (isLoading) {
+  if (isLoading || !bootResolved) {
+
     return (
       <SplashScreen 
         message="Searching for nearby vendors..."

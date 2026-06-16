@@ -1,4 +1,4 @@
-import { db } from '@/config/firebase';
+import { db } from '../config/firebase';
 import {
   addDoc,
   collection,
@@ -6,6 +6,7 @@ import {
   doc,
   getDocs,
   getDoc,
+  getDocFromCache,
   increment,
   onSnapshot,
   orderBy,
@@ -15,7 +16,6 @@ import {
   updateDoc,
   where,
   limit,
-  type DocumentData,
 } from 'firebase/firestore';
 import { Conversation, CreateConversationData, Message, SendMessageData } from './types/chat';
 
@@ -41,7 +41,7 @@ const normalizeLiveLocation = (raw: any): Conversation['consumerLiveLocation'] |
   };
 };
 
-export const mapConversationDoc = (id: string, data: DocumentData): Conversation => ({
+export const mapConversationDoc = (id: string, data: Record<string, any>): Conversation => ({
   id,
   consumerId: data.consumerId,
   consumerName: data.consumerName,
@@ -68,8 +68,15 @@ export const mapConversationDoc = (id: string, data: DocumentData): Conversation
 // Helper to check if error is offline-related
 const isOfflineError = (error: any): boolean => {
   return error?.code === 'unavailable' ||
+         error?.code === 'failed-precondition' ||
          error?.message?.includes('client is offline') ||
          error?.message?.includes('offline');
+};
+
+const isPermissionError = (error: any): boolean => {
+  return error?.code === 'permission-denied' ||
+         error?.message?.includes('permission') ||
+         error?.message?.includes('insufficient permissions');
 };
 
 // Create a new conversation between consumer and supplier
@@ -192,10 +199,10 @@ export const getMessages = async (
     const querySnapshot = await getDocs(q);
     const messages: Message[] = [];
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
+    querySnapshot.forEach((docSnap: any) => {
+      const data = docSnap.data();
       messages.push({
-        id: doc.id,
+        id: docSnap.id,
         ...data,
         timestamp: data.timestamp?.toDate() || new Date(),
       } as Message);
@@ -226,10 +233,10 @@ export const getConsumerConversations = async (
     const querySnapshot = await getDocs(q);
     const conversations: Conversation[] = [];
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
+    querySnapshot.forEach((docSnap: any) => {
+      const data = docSnap.data();
       conversations.push({
-        id: doc.id,
+        id: docSnap.id,
         ...data,
         consumerLiveLocationUpdatedAt: toDateOrUndefined(data.consumerLiveLocationUpdatedAt),
         unreadCount: data.consumerUnreadCount ?? data.unreadCount ?? 0,
@@ -266,10 +273,10 @@ export const getSupplierConversations = async (
     const querySnapshot = await getDocs(q);
     const conversations: Conversation[] = [];
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
+    querySnapshot.forEach((docSnap: any) => {
+      const data = docSnap.data();
       conversations.push({
-        id: doc.id,
+        id: docSnap.id,
         ...data,
         consumerLiveLocationUpdatedAt: toDateOrUndefined(data.consumerLiveLocationUpdatedAt),
         unreadCount: data.supplierUnreadCount ?? data.unreadCount ?? 0,
@@ -307,7 +314,7 @@ export const markMessagesAsRead = async (
 
     const querySnapshot = await getDocs(q);
     
-    const updatePromises = querySnapshot.docs.map((docSnapshot) =>
+    const updatePromises = querySnapshot.docs.map((docSnapshot: any) =>
       updateDoc(doc(db, MESSAGES_COLLECTION, docSnapshot.id), { read: true })
     );
 
@@ -341,12 +348,12 @@ export const subscribeToMessages = (
     orderBy('timestamp', 'asc')
   );
 
-  return onSnapshot(q, (querySnapshot) => {
+  return onSnapshot(q, (querySnapshot: any) => {
     const messages: Message[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
+    querySnapshot.forEach((docSnap: any) => {
+      const data = docSnap.data();
       messages.push({
-        id: doc.id,
+        id: docSnap.id,
         ...data,
         timestamp: data.timestamp?.toDate() || new Date(),
       } as Message);
@@ -366,12 +373,12 @@ export const subscribeToConsumerConversations = (
     orderBy('updatedAt', 'desc')
   );
 
-  return onSnapshot(q, (querySnapshot) => {
+  return onSnapshot(q, (querySnapshot: any) => {
     const conversations: Conversation[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
+    querySnapshot.forEach((docSnap: any) => {
+      const data = docSnap.data();
       conversations.push({
-        id: doc.id,
+        id: docSnap.id,
         ...data,
         consumerLiveLocationUpdatedAt: toDateOrUndefined(data.consumerLiveLocationUpdatedAt),
         unreadCount: data.consumerUnreadCount ?? data.unreadCount ?? 0,
@@ -389,23 +396,39 @@ export const subscribeToConsumerConversations = (
 
 // Get consumer phone number from Firestore users collection
 const getConsumerPhoneNumber = async (consumerId: string): Promise<string | undefined> => {
+  const userDocRef = doc(db, 'users', consumerId);
+
   try {
-    const userDocRef = doc(db, 'users', consumerId);
     const userDoc = await getDoc(userDocRef);
 
     if (userDoc.exists()) {
       const data = userDoc.data();
-      // Try various phone field names and formats
       const phone = data.phoneNumber || data.phone || data.Telephone || data.tel;
       if (phone && typeof phone === 'string' && phone.trim().length > 0) {
         return phone.trim();
       }
     }
-    return undefined;
-  } catch (error) {
-    console.error('Error fetching consumer phone:', error);
-    return undefined;
+  } catch (error: any) {
+    if (isOfflineError(error) || isPermissionError(error)) {
+      try {
+        const cachedDoc = await getDocFromCache(userDocRef);
+        if (cachedDoc.exists()) {
+          const data = cachedDoc.data();
+          const phone = data.phoneNumber || data.phone || data.Telephone || data.tel;
+          if (phone && typeof phone === 'string' && phone.trim().length > 0) {
+            return phone.trim();
+          }
+        }
+      } catch {
+        // Ignore cache fallback failures; the UI can continue without the phone number.
+      }
+      return undefined;
+    }
+
+    console.warn('[Chat] Could not resolve consumer phone number:', error?.message || error);
   }
+
+  return undefined;
 };
 
 // Subscribe to supplier conversations (real-time)
@@ -421,7 +444,7 @@ export const subscribeToSupplierConversations = (
 
   return onSnapshot(
     q,
-    async (querySnapshot) => {
+    async (querySnapshot: any) => {
       console.log(
         '[ChatService] Query snapshot size:',
         querySnapshot.size,
@@ -457,7 +480,7 @@ export const subscribeToSupplierConversations = (
 
       callback(Array.from(byId.values()));
     },
-    (error) => {
+    (error: any) => {
       console.error(
         '[Chat] subscribeToSupplierConversations error:',
         error?.code,
@@ -619,14 +642,14 @@ export const subscribeToConversation = (
 
   return onSnapshot(
     conversationRef,
-    (snapshot) => {
+    (snapshot: any) => {
       if (!snapshot.exists()) {
         callback(null);
         return;
       }
       callback(mapConversationDoc(snapshot.id, snapshot.data()));
     },
-    (error) => {
+    (error: any) => {
       console.error('[Chat] subscribeToConversation error:', error?.code, error?.message);
       callback(null);
     }

@@ -5,12 +5,15 @@ export type OrderStatus = string;
 export interface LocalOrderHistoryItem {
   orderId: string;
   cylinderSize: string;
+  /** Gas brand/type entered by consumer */
+  gasType: string;
   quantity: number;
   deliveryAddress: string;
   /** ISO string */
   date: string;
   status: OrderStatus;
 }
+
 
 export interface AddLocalOrderHistoryItem extends Omit<LocalOrderHistoryItem, 'date'> {
   date?: string;
@@ -72,6 +75,7 @@ export async function addOrderToHistory(
     const nextItem: LocalOrderHistoryItem = {
       orderId: order.orderId,
       cylinderSize: order.cylinderSize,
+      gasType: (order as any).gasType ?? '—',
       quantity: Number(order.quantity),
       deliveryAddress: order.deliveryAddress,
       date: order.date || new Date().toISOString(),
