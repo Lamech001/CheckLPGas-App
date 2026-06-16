@@ -9,14 +9,14 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  Linking,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    FlatList,
+    Linking,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -279,11 +279,6 @@ export default function SupplierOrdersScreen() {
           <TouchableOpacity style={styles.deliveredButton} onPress={() => handleMarkDelivered(item)}>
             <FontAwesome5 name="check-circle" size={14} color="#fff" />
             <Text style={styles.deliveredButtonText}>Mark Delivered</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.viewButton} onPress={() => handleOrderPress(item)}>
-            <Text style={styles.viewButtonText}>View</Text>
-            <FontAwesome5 name="chevron-right" size={12} color="#007AFF" />
           </TouchableOpacity>
         </View>
       </View>

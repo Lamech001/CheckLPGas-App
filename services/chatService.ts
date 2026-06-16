@@ -801,7 +801,7 @@ const getConsumerPhoneNumber = async (consumerId: string): Promise<string | unde
 
       const data = userDoc.data();
 
-      const phone = data.phoneNumber || data.phone || data.Telephone || data.tel;
+      const phone = data.phoneNumber || data.phone || data.Telephone || data.tel || data.mobile || data.mobileNumber || data.contact;
 
       if (phone && typeof phone === 'string' && phone.trim().length > 0) {
 
@@ -823,7 +823,7 @@ const getConsumerPhoneNumber = async (consumerId: string): Promise<string | unde
 
           const data = cachedDoc.data();
 
-          const phone = data.phoneNumber || data.phone || data.Telephone || data.tel;
+          const phone = data.phoneNumber || data.phone || data.Telephone || data.tel || data.mobile || data.mobileNumber || data.contact;
 
           if (phone && typeof phone === 'string' && phone.trim().length > 0) {
 
