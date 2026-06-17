@@ -3,33 +3,33 @@ import { auth, db } from '@/config/firebase';
 import NetInfo from '@react-native-community/netinfo';
 
 import {
-    createUserWithEmailAndPassword,
+  createUserWithEmailAndPassword,
 
-    onAuthStateChanged,
+  onAuthStateChanged,
 
-    sendEmailVerification,
+  sendEmailVerification,
 
-    sendPasswordResetEmail,
+  sendPasswordResetEmail,
 
-    signInWithEmailAndPassword,
+  signInWithEmailAndPassword,
 
-    signOut,
+  signOut,
 
-    updateProfile,
+  updateProfile,
 
-    User
+  User
 } from 'firebase/auth';
 
 import {
-    doc,
+  doc,
 
-    getDoc,
+  getDoc,
 
-    serverTimestamp,
+  serverTimestamp,
 
-    setDoc,
+  setDoc,
 
-    updateDoc,
+  updateDoc,
 } from 'firebase/firestore';
 
 
@@ -844,6 +844,16 @@ export const logOut = async (): Promise<{ success: boolean; error?: string }> =>
 
     await signOut(auth);
 
+    // Clear cached user data and session
+    try {
+      const { clearPersistentSession } = await import('@/services/persistenceSessionService');
+      const { clearCache, CACHE_KEYS } = await import('@/services/cacheService');
+      await clearPersistentSession();
+      await clearCache(CACHE_KEYS.USER_PROFILE);
+    } catch (e) {
+      // Don't block logout if cache clear fails
+    }
+
     return { success: true };
 
   } catch (error: any) {
@@ -903,6 +913,62 @@ export const getUserData = async (uid: string): Promise<UserData | null> => {
     console.error('Error getting user data:', error);
 
     return null;
+
+  }
+
+};
+
+
+
+// Get user data with caching - tries cache first, then Firestore
+
+export const getUserDataWithCache = async (uid: string): Promise<UserData | null> => {
+
+  try {
+
+    // Try to get from cache first
+
+    const { getCachedUserProfile } = await import('@/services/cacheService');
+
+    const cached = await getCachedUserProfile<UserData>();
+
+
+
+    if (cached && cached.uid === uid) {
+
+      return cached;
+
+    }
+
+
+
+    // If not in cache or UID mismatch, fetch from Firestore
+
+    const freshData = await getUserData(uid);
+
+
+
+    if (freshData) {
+
+      // Cache the fresh data
+
+      const { cacheUserProfile } = await import('@/services/cacheService');
+
+      await cacheUserProfile(freshData);
+
+    }
+
+
+
+    return freshData;
+
+  } catch (error) {
+
+    console.error('Error getting user data with cache:', error);
+
+    // Fallback to direct fetch
+
+    return getUserData(uid);
 
   }
 
@@ -1044,7 +1110,6 @@ const getAuthErrorMessage = (errorCode: string): string => {
 
 
 
-export { };
 
 
 

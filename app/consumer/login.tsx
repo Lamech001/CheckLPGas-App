@@ -75,6 +75,18 @@ export default function ConsumerLogin() {
           // Ignore local persistence failures.
         }
 
+        // Fetch and cache user data for offline access
+        try {
+          const { getUserData } = await import('@/services/authService');
+          const { cacheUserProfile } = await import('@/services/cacheService');
+          const userData = await getUserData(result.user?.uid || '');
+          if (userData) {
+            await cacheUserProfile(userData);
+          }
+        } catch {
+          // Ignore caching failures; login already succeeded.
+        }
+
         // Success haptic feedback
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         

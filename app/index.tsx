@@ -20,7 +20,18 @@ export default function WelcomeScreen() {
 
       try {
         const { getPersistentSession } = await import('@/services/persistenceSessionService');
+        const { getCachedUserProfile } = await import('@/services/cacheService');
         const session = await getPersistentSession();
+
+        // Load cached user profile if available
+        if (session?.uid) {
+          try {
+            const cachedProfile = await getCachedUserProfile();
+            // Profile is now available in cache for use throughout the app
+          } catch {
+            // Ignore cache loading errors
+          }
+        }
 
         if (session?.emailVerified && session.uid && session.role === 'consumer') {
           router.replace('/(tabs)');

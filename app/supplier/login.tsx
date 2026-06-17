@@ -1,22 +1,22 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { signInWithEmail } from '@/services/authService';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, usePathname } from 'expo-router';
-import { useState } from 'react';
 import type { PersistentSession } from '@/services/persistenceSessionService';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { usePathname, useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppStatusBar } from '@/components/AppStatusBar';
 
 export default function SupplierLogin() {
   const router = useRouter();
@@ -78,6 +78,18 @@ export default function SupplierLogin() {
           await persistVerifiedSession(sess);
         } catch {
           // Ignore local persistence failures.
+        }
+
+        // Fetch and cache user data for offline access
+        try {
+          const { getUserData } = await import('@/services/authService');
+          const { cacheUserProfile } = await import('@/services/cacheService');
+          const userData = await getUserData(result.user?.uid || '');
+          if (userData) {
+            await cacheUserProfile(userData);
+          }
+        } catch {
+          // Ignore caching failures; login already succeeded.
         }
 
         // INSTANT NAVIGATION: Go to supplier dashboard (orders are accessible from dashboard)
