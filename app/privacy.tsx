@@ -3,11 +3,11 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,63 +33,75 @@ export default function PrivacyPolicyScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.lastUpdated}>Last updated: 2026-05-14</Text>
+        <Text style={styles.lastUpdated}>Last updated: June 17, 2026</Text>
 
         <Text style={styles.intro}>
-          This Privacy Policy explains how GasAround (“we”, “us”, “our”) collects, uses, and shares information when you use our mobile application.
+          GasAround ("we", "us", "our") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and share your information when you use our gas price comparison mobile application.
         </Text>
 
-        <Section title="1) Information we collect">
-          {[
-            'Account information: when you sign up, we collect your email, phone number, display name, and role (consumer/supplier).',
-            'Location information: if you enable Location Services, we may use your approximate location to show nearby gas vendors. You can disable location any time from the app settings; disabling stops location-based results.',
-            'Order and transaction information: when you request or manage orders, we store order details and related supplier/consumer information needed to fulfill and track requests.',
-            'Device and usage information: we may collect technical and diagnostic information (e.g., app version, device type, crash logs) to maintain performance, reliability, and security.',
-            'Communications & notifications: if you opt in, we may send push notifications and/or email notifications related to your account activity and order status.'
-          ].join(' ')}
+        <Section title="1) Information We Collect">
+          We collect the following types of information:
+          {'\n\n'}Account Information: When you register, we collect your email address, phone number, full name, and role (consumer or supplier).
+          {'\n\n'}Location Information: With your permission, we collect your approximate location to show nearby gas suppliers. You can disable location services at any time in your device settings.
+          {'\n\n'}Order Information: When you place or manage orders, we collect order details including cylinder size, quantity, delivery address, and supplier information.
+          {'\n\n'}Business Information: For suppliers, we collect business details such as enterprise name, location, opening hours, and gas prices.
+          {'\n\n'}Device Information: We collect device type, app version, and technical diagnostic information to improve app performance and fix bugs.
+          {'\n\n'}Communications: We collect information you send us through customer support or in-app communications.
         </Section>
 
-
-        <Section title="2) How we use your information">
-          {[
-            'To provide and improve the service: searching, browsing, and comparing gas vendors.',
-            'To personalize experience: showing nearby vendors when location is enabled.',
-            'To manage your account: authentication, access to consumer/supplier features.',
-            'To send notifications: only when you opt in to the relevant notification types.',
-            'To ensure safety and security: detecting issues and preventing fraud.'
-          ].join(' ')}
+        <Section title="2) How We Use Your Information">
+          We use your information to:
+          {'\n\n'}Provide and improve our gas price comparison service
+          {'\n\n'}Show you nearby gas suppliers based on your location
+          {'\n\n'}Process and track your gas orders
+          {'\n\n'}Enable communication between consumers and suppliers
+          {'\n\n'}Send you notifications about orders, messages, and app updates
+          {'\n\n'}Verify your identity and secure your account
+          {'\n\n'}Detect and prevent fraud and abuse
+          {'\n\n'}Analyze usage patterns to improve our services
         </Section>
 
-        <Section title="3) When we share information">
-          {[
-            'Service providers: we may share information with trusted third parties that help operate the app (e.g., hosting and analytics providers).',
-            'Vendors (suppliers): suppliers may view customer orders and related details only insofar as necessary to fulfill transactions.',
-            'Legal requirements: we may disclose information if required by law or to protect rights, safety, and security.'
-          ].join(' ')}
+        <Section title="3) Sharing Your Information">
+          We may share your information in the following ways:
+          {'\n\n'}With Suppliers: When you place an order, we share your order details and contact information with the relevant supplier to fulfill your order.
+          {'\n\n'}With Consumers: Suppliers can see consumer order details and contact information necessary to fulfill orders.
+          {'\n\n'}Service Providers: We share information with third-party service providers who help us operate the app, including Firebase (Google) for database and authentication services.
+          {'\n\n'}Legal Requirements: We may disclose information if required by law or to protect our rights, safety, or property.
+          {'\n\n'}Business Transfers: If we sell or transfer our business, your information may be transferred to the new owner.
         </Section>
 
-        <Section title="4) Retention">
-          We retain account data for as long as your account remains active. You may request deletion of your account; when you delete your account, we attempt to delete your associated user profile and supplier listing data from our database.
+        <Section title="4) Data Security">
+          We implement industry-standard security measures to protect your information, including encryption, secure authentication, and regular security audits. However, no method of transmission over the internet is 100% secure.
         </Section>
 
-        <Section title="5) Your choices">
-          {[
-            'Location: you can enable/disable Location Services in the app settings. Disabling will prevent us from using location for nearby results.',
-            'Notifications: you can enable/disable push notifications and email notifications in the app settings.',
-            'Account deletion: you can delete your account from Settings.'
-          ].join(' ')}
+        <Section title="5) Data Retention">
+          We retain your information for as long as necessary to provide our services and as required by law. You can request deletion of your account and associated data through the app settings.
         </Section>
 
-        <Section title="6) Children’s privacy">
-          Our service is not directed to children under 13 (or the relevant age in your region). We do not knowingly collect personal information from children.
+        <Section title="6) Your Privacy Rights">
+          You have the right to:
+          {'\n\n'}Access the personal information we hold about you
+          {'\n\n'}Correct inaccurate information
+          {'\n\n'}Request deletion of your personal information
+          {'\n\n'}Opt out of marketing communications
+          {'\n\n'}Disable location services
+          {'\n\n'}Manage notification preferences
         </Section>
 
-        <Section title="7) Security">
-          We use industry-standard practices to help protect information. However, no method of transmission or storage is 100% secure.
+        <Section title="7) Location Services">
+          The app uses location services to show you nearby gas suppliers. Location data is processed on your device and shared with our servers only when you explicitly enable location services. You can disable location at any time in your device settings.
         </Section>
 
-        <Section title="8) Contact us">
-          If you have questions about this Privacy Policy, contact us via the in-app support/help section.
+        <Section title="8) Children's Privacy">
+          Our service is not intended for children under 13. We do not knowingly collect personal information from children under 13.
+        </Section>
+
+        <Section title="9) Changes to This Policy">
+          We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the updated policy in the app and updating the "Last updated" date.
+        </Section>
+
+        <Section title="10) Contact Us">
+          If you have questions about this Privacy Policy or our data practices, please contact us at gasaroundsupport@gmail.com
         </Section>
 
         <View style={{ height: 20 }} />

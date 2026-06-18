@@ -1,16 +1,16 @@
 import { auth, db } from '@/config/firebase';
 
 import {
-    createUserWithEmailAndPassword,
+  createUserWithEmailAndPassword,
 
-    sendEmailVerification,
+  sendEmailVerification,
 
-    updateProfile,
+  updateProfile,
 
-    User,
+  User,
 } from 'firebase/auth';
 
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
 import { SupplierData } from './types/supplier';
 
@@ -472,27 +472,13 @@ export const getSupplierData = async (
 
     try {
 
-      console.log('[SupplierAuth] Fetching data for:', supplierId, 'Attempt:', attempt + 1);
-
       const supplierRef = doc(db, 'suppliers', supplierId);
 
-      console.log('[SupplierAuth] Document path:', supplierRef.path);
-
-      
-
       const docSnap = await getDoc(supplierRef);
-
-      console.log('[SupplierAuth] Document exists:', docSnap.exists());
-
-      
 
       if (docSnap.exists()) {
 
         const data = docSnap.data() as SupplierData;
-
-        console.log('[SupplierAuth] Raw document data:', JSON.stringify(data, null, 2));
-
-        console.log('[SupplierAuth] Data found for:', supplierId, 'Name:', data.enterpriseName);
 
         return { success: true, data };
 
@@ -512,11 +498,9 @@ export const getSupplierData = async (
 
           const querySnapshot = await getDocs(suppliersRef);
 
-          console.log('[SupplierAuth] Total suppliers in collection:', querySnapshot.size);
+          querySnapshot.forEach((doc: any) => {
 
-          querySnapshot.forEach((doc) => {
-
-            console.log('[SupplierAuth] Existing supplier ID:', doc.id);
+            // Existing supplier found
 
           });
 
@@ -527,8 +511,6 @@ export const getSupplierData = async (
         }
 
         
-
-        console.log('[SupplierAuth] Check if supplier has completed registration or if there is a Firestore permissions issue.');
 
         return { success: false, error: 'Supplier not found. Please complete registration.' };
 
@@ -656,8 +638,6 @@ export const subscribeToSupplierData = (
 
 ): (() => void) => {
 
-  console.log('[SupplierAuth] Starting subscription for:', supplierId);
-
   const supplierRef = doc(db, 'suppliers', supplierId);
 
   
@@ -666,15 +646,13 @@ export const subscribeToSupplierData = (
 
     supplierRef,
 
-    (snapshot) => {
+    (snapshot: any) => {
 
       try {
 
         if (snapshot.exists()) {
 
           const data = snapshot.data() as SupplierData;
-
-          console.log('[SupplierAuth] Data received for:', supplierId, 'Enterprise:', data.enterpriseName);
 
           onData(data);
 
@@ -696,7 +674,7 @@ export const subscribeToSupplierData = (
 
     },
 
-    (err) => {
+    (err: any) => {
 
       // Handle Firestore SDK internal errors gracefully
 
@@ -721,4 +699,36 @@ export const subscribeToSupplierData = (
   );
 
 };
+
+export const updateSupplierProfile = async (
+  supplierId: string,
+  data: {
+    fullName: string;
+    enterpriseName: string;
+    phoneNumber: string;
+    location: string;
+    openingHours: { open: string; close: string };
+  }
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const supplierRef = doc(db, 'suppliers', supplierId);
+    
+    await updateDoc(supplierRef, {
+      fullName: data.fullName,
+      enterpriseName: data.enterpriseName,
+      phoneNumber: data.phoneNumber,
+      location: {
+        address: data.location,
+      },
+      openingHours: data.openingHours,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[SupplierAuth] Error updating supplier profile:', error);
+    return { success: false, error: error.message || 'Failed to update profile' };
+  }
+};
+
 

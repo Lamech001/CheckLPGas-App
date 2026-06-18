@@ -37,15 +37,7 @@ export default function SupplierOrdersScreen() {
       return;
     }
 
-    console.log('[Orders] Subscribing with supplierId:', currentUser.uid);
-
     const unsubscribe = subscribeToSupplierConversations(currentUser.uid, (updatedConversations) => {
-      console.log(
-        '[Orders] Received conversations:',
-        updatedConversations.length,
-        'supplierId:',
-        currentUser.uid,
-      );
 
       // Preserve existing conversations if new data is empty (network hiccup)
       if (updatedConversations.length === 0 && conversationsRef.current.length > 0) {

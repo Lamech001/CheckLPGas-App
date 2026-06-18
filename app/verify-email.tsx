@@ -194,7 +194,7 @@ export default function VerifyEmailScreen() {
 
       } catch (checkError) {
 
-        console.log('Action code check error:', checkError);
+        console.error('Action code check error:', checkError);
 
       }
 

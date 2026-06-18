@@ -18,6 +18,14 @@ import { CreateReviewData, Review, SupplierRating } from './types/review';
 const REVIEWS_COLLECTION = 'reviews';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
+// Helper to safely convert timestamp to Date
+const toDateOrUndefined = (value: any): Date | undefined => {
+  if (!value) return undefined;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  return undefined;
+};
+
 // Add a new review
 export const addReview = async (
   data: CreateReviewData
@@ -70,12 +78,12 @@ export const getSupplierReviews = async (
     const querySnapshot = await getDocs(q);
     const reviews: Review[] = [];
 
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
       const data = doc.data();
       reviews.push({
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
+        createdAt: toDateOrUndefined(data.createdAt) || new Date(),
       } as Review);
     });
 
@@ -103,12 +111,12 @@ export const getConsumerReviews = async (
     const querySnapshot = await getDocs(q);
     const reviews: Review[] = [];
 
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
       const data = doc.data();
       reviews.push({
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
+        createdAt: toDateOrUndefined(data.createdAt) || new Date(),
       } as Review);
     });
 
@@ -161,7 +169,7 @@ export const updateSupplierRating = async (supplierId: string): Promise<void> =>
     let totalRating = 0;
     const ratingCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
 
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
       const rating = doc.data().rating;
       totalRating += rating;
       ratingCounts[rating as keyof typeof ratingCounts]++;
@@ -222,14 +230,14 @@ export const subscribeToSupplierReviews = (
     orderBy('createdAt', 'desc')
   );
 
-  return onSnapshot(q, (querySnapshot) => {
+  return onSnapshot(q, (querySnapshot: any) => {
     const reviews: Review[] = [];
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
       const data = doc.data();
       reviews.push({
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
+        createdAt: toDateOrUndefined(data.createdAt) || new Date(),
       } as Review);
     });
     callback(reviews);
@@ -252,12 +260,12 @@ export const getRecentReviews = async (
     const querySnapshot = await getDocs(q);
     const reviews: Review[] = [];
 
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
       const data = doc.data();
       reviews.push({
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
+        createdAt: toDateOrUndefined(data.createdAt) || new Date(),
       } as Review);
     });
 

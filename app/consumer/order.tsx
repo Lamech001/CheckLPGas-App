@@ -340,10 +340,6 @@ export default function OrderScreen() {
 
 
 
-    console.log('[Order] Creating conversation with payload:', JSON.stringify(conversationPayload));
-
-
-
     const phoneNumber = await getConsumerPhoneNumber();
 
     if (phoneNumber) {
@@ -352,20 +348,7 @@ export default function OrderScreen() {
 
     }
 
-
-
-    console.log('[Order][Debug] currentUser.uid:', currentUser.uid);
-
-    console.log('[Order][Debug] supplierData.uid:', supplierData.uid);
-
-
-
     const result = await getOrCreateConversation(conversationPayload);
-
-    console.log('[Order][Debug] conversationId result:', result);
-
-
-
     if (result.success && result.conversationId) {
 
       setConversationId(result.conversationId);
@@ -673,8 +656,6 @@ const submitGasType = () => {
 
       if (conversationId) {
 
-        console.log('[Order] Sending message to conversation:', conversationId);
-
         const msgResult = await sendMessage({
 
           conversationId,
@@ -688,8 +669,6 @@ const submitGasType = () => {
           text: orderMessage,
 
         });
-
-        console.log('[Order] Message sent:', msgResult.success, 'msgId:', msgResult.messageId);
 
 
 

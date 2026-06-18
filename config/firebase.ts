@@ -24,8 +24,6 @@ const originalConsoleWarn = console.warn;
 
 const originalConsoleError = console.error;
 
-const originalConsoleLog = console.log;
-
 
 
 const suppressedPatterns = [
@@ -82,8 +80,6 @@ console.error = (...args: any[]) => {
 
        args[0].includes('FIRESTORE') && args[0].includes('Unexpected state'))) {
 
-    console.log('[Firestore SDK] Suppressed internal error:', args[0].substring(0, 100));
-
     return;
 
   }
@@ -96,13 +92,6 @@ console.error = (...args: any[]) => {
 
 
 
-console.log = (...args: any[]) => {
-
-  if (shouldSuppress(args[0])) return;
-
-  originalConsoleLog.apply(console, args);
-
-};
 
 
 
@@ -172,11 +161,11 @@ enableIndexedDbPersistence(db).catch((err: any) => {
 
   if (err.code === 'failed-precondition') {
 
-    console.log('[Firestore] Persistence unavailable: multiple tabs open');
+    console.warn('[Firestore] Persistence unavailable: multiple tabs open');
 
   } else if (err.code === 'unimplemented') {
 
-    console.log('[Firestore] Persistence not available on this platform');
+    console.warn('[Firestore] Persistence not available on this platform');
 
   }
 
@@ -242,7 +231,7 @@ export const disableFirestoreNetwork = async (): Promise<void> => {
 
 enableFirestoreNetwork().catch((err) => {
 
-  console.log('Network enable warning (non-critical):', err);
+  console.warn('Network enable warning (non-critical):', err);
 
 });
 
@@ -268,7 +257,7 @@ export const retryWithNetworkRecovery = async <T,>(
 
     if ((error.code === 'auth/network-request-failed' || error.message?.includes('network')) && retries > 0) {
 
-      console.log(`Network error, retrying... (${retries} attempts left)`);
+      console.warn(`Network error, retrying... (${retries} attempts left)`);
 
       // Wait 1 second before retry
 

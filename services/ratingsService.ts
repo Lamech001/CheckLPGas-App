@@ -106,7 +106,6 @@ export const submitRating = async (
   } catch (error: any) {
     // Handle offline error - rating will sync when back online
     if (isOfflineError(error)) {
-      console.log('[Ratings] Offline - rating queued for sync');
       return { success: true }; // Treat as success for offline, it'll sync later
     }
     console.error('[Ratings] Submit rating error:', error);
@@ -143,7 +142,6 @@ export const getSupplierRatings = async (
     return { success: true, ratings };
   } catch (error: any) {
     if (isOfflineError(error)) {
-      console.log('[Ratings] Offline - returning empty ratings');
       return { success: true, ratings: [] };
     }
     console.error('[Ratings] Get ratings error:', error);
@@ -188,7 +186,6 @@ export const getSupplierRatingStats = async (
     return { success: true, stats };
   } catch (error: any) {
     if (isOfflineError(error)) {
-      console.log('[Ratings] Offline - returning zero stats');
       return {
         success: true,
         stats: { averageRating: 0, totalRatings: 0, ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } }

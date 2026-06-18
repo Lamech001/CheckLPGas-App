@@ -15,11 +15,11 @@ import { canAccessVerifiedRole } from '@/services/authVerifiedGuardService';
 import { subscribeToSupplierConversations } from '@/services/chatService';
 
 import {
-    getSupplierData,
+  getSupplierData,
 
-    toggleShopStatus,
+  toggleShopStatus,
 
-    updateSupplierPrices,
+  updateSupplierPrices,
 } from '@/services/supplierAuthService';
 
 import type { SupplierData } from '@/services/types/supplier';
@@ -33,25 +33,25 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-    ActivityIndicator,
+  ActivityIndicator,
 
-    Alert,
+  Alert,
 
-    Modal,
+  Modal,
 
-    ScrollView,
+  ScrollView,
 
-    StyleSheet,
+  StyleSheet,
 
-    Switch,
+  Switch,
 
-    Text,
+  Text,
 
-    TextInput,
+  TextInput,
 
-    TouchableOpacity,
+  TouchableOpacity,
 
-    View
+  View
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -1328,7 +1328,7 @@ const styles = StyleSheet.create({
 
     paddingHorizontal: 16,
 
-    paddingTop: 60,
+    paddingTop: 45,
 
     paddingBottom: 16,
 

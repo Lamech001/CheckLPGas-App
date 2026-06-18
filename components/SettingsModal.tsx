@@ -1,19 +1,20 @@
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Switch,
-  Alert,
-} from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
-import { logOut } from '@/services/authService';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
+import { logOut } from '@/services/authService';
+import { FontAwesome5 } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+    Alert,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -167,7 +168,7 @@ export function SettingsModal({
 
   const handleEditProfile = () => {
     onClose();
-    Alert.alert('Coming Soon', 'Edit profile is not available yet.');
+    router.push('/supplier/edit-profile');
   };
 
   const handleChangePassword = () => {
@@ -177,7 +178,9 @@ export function SettingsModal({
 
   const handleHelpSupport = () => {
     onClose();
-    Alert.alert('Coming Soon', 'Support is not available yet.');
+    Linking.openURL('mailto:gasaroundsupport@gmail.com').catch((err) => {
+      Alert.alert('Error', 'Unable to open email client');
+    });
   };
 
   const handlePrivacyPolicy = () => {
@@ -291,14 +294,8 @@ export function SettingsModal({
               <SettingItem
                 icon="moon"
                 title="Dark Mode"
-                subtitle="Switch to dark theme"
-                toggle
-                toggleValue={isDarkMode}
-                onToggle={(value) => {
-                  // Update app theme immediately
-                  if (value !== isDarkMode) toggleTheme();
-                  saveSettings('darkMode', value);
-                }}
+                subtitle="Dark mode is not available yet"
+                onPress={() => {}}
               />
             </View>
 

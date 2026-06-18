@@ -21,6 +21,9 @@ export default function WelcomeScreen() {
       try {
         const { getPersistentSession } = await import('@/services/persistenceSessionService');
         const { getCachedUserProfile } = await import('@/services/cacheService');
+        const { auth } = await import('@/config/firebase');
+        const { getUserRole, onAuthChange } = await import('@/services/authService');
+        
         const session = await getPersistentSession();
 
         // Load cached user profile if available
@@ -33,13 +36,72 @@ export default function WelcomeScreen() {
           }
         }
 
-        if (session?.emailVerified && session.uid && session.role === 'consumer') {
-          router.replace('/(tabs)');
-          return;
-        }
-        if (session?.emailVerified && session.uid && session.role === 'supplier') {
-          router.replace('/supplier/dashboard');
-          return;
+        // Check both local session marker AND Firebase Auth state
+        if (session?.emailVerified && session.uid && session.role) {
+          // Wait for Firebase Auth to be fully initialized and check user state
+          let authCheckComplete = false;
+          
+          const unsubscribe = onAuthChange(async (firebaseUser) => {
+            if (authCheckComplete) return; // Prevent multiple calls
+            authCheckComplete = true;
+            
+            unsubscribe(); // Unsubscribe after first callback
+            
+            if (firebaseUser && firebaseUser.uid === session.uid) {
+              // Verify the user's role matches the session
+              const roleResult = await getUserRole(session.uid);
+              
+              if (roleResult.role === session.role) {
+                // Both local session and Firebase Auth are valid - navigate to dashboard
+                if (session.role === 'consumer') {
+                  router.replace('/(tabs)');
+                  return;
+                } else if (session.role === 'supplier') {
+                  router.replace('/supplier/dashboard');
+                  return;
+                }
+              }
+            }
+            
+            // If auth check fails, show role selection
+            setIsLoading(false);
+            setBootResolved(true);
+          });
+          
+          // Set a timeout in case auth state doesn't change (Firebase Auth persistence delay)
+          setTimeout(() => {
+            if (!authCheckComplete) {
+              authCheckComplete = true;
+              unsubscribe();
+              
+              // Fallback: Check auth.currentUser directly if onAuthChange didn't fire
+              const { auth } = require('@/config/firebase');
+              const firebaseUser = auth.currentUser;
+              
+              if (firebaseUser && firebaseUser.uid === session.uid) {
+                getUserRole(session.uid).then((roleResult: any) => {
+                  if (roleResult.role === session.role) {
+                    if (session.role === 'consumer') {
+                      router.replace('/(tabs)');
+                    } else if (session.role === 'supplier') {
+                      router.replace('/supplier/dashboard');
+                    }
+                  } else {
+                    setIsLoading(false);
+                    setBootResolved(true);
+                  }
+                }).catch(() => {
+                  setIsLoading(false);
+                  setBootResolved(true);
+                });
+              } else {
+                setIsLoading(false);
+                setBootResolved(true);
+              }
+            }
+          }, 5000); // Increased timeout to 5 seconds for production Firebase Auth persistence
+          
+          return; // Don't set loading false yet, wait for auth callback
         }
       } catch {
         // ignore; fall through to role selection

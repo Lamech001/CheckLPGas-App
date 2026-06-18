@@ -111,15 +111,15 @@ export const mapConversationDoc = (id: string, data: Record<string, any>): Conve
 
         ...data.lastMessage,
 
-        timestamp: data.lastMessage.timestamp?.toDate() || new Date(),
+        timestamp: toDateOrUndefined(data.lastMessage.timestamp) || new Date(),
 
       }
 
     : undefined,
 
-  createdAt: data.createdAt?.toDate() || new Date(),
+  createdAt: toDateOrUndefined(data.createdAt) || new Date(),
 
-  updatedAt: data.updatedAt?.toDate() || new Date(),
+  updatedAt: toDateOrUndefined(data.updatedAt) || new Date(),
 
 });
 
@@ -239,8 +239,6 @@ export const createConversation = async (
 
     if (isOfflineError(error)) {
 
-      console.log('[Chat] Offline - conversation queued for sync');
-
       return { success: true };
 
     }
@@ -338,8 +336,6 @@ export const sendMessage = async (
     // Handle offline - message will sync when back online
 
     if (isOfflineError(error)) {
-
-      console.log('[Chat] Offline - message queued for sync');
 
       return { success: true };
 
@@ -485,7 +481,7 @@ export const getConsumerConversations = async (
 
         createdAt: data.createdAt?.toDate() || new Date(),
 
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        updatedAt: toDateOrUndefined(data.updatedAt) || new Date(),
 
       } as Conversation);
 
@@ -565,7 +561,7 @@ export const getSupplierConversations = async (
 
         createdAt: data.createdAt?.toDate() || new Date(),
 
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        updatedAt: toDateOrUndefined(data.updatedAt) || new Date(),
 
       } as Conversation);
 
@@ -769,7 +765,7 @@ export const subscribeToConsumerConversations = (
 
         createdAt: data.createdAt?.toDate() || new Date(),
 
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        updatedAt: toDateOrUndefined(data.updatedAt) || new Date(),
 
       } as Conversation);
 
@@ -884,18 +880,6 @@ export const subscribeToSupplierConversations = (
     q,
 
     async (querySnapshot: any) => {
-
-      console.log(
-
-        '[ChatService] Query snapshot size:',
-
-        querySnapshot.size,
-
-        'supplierId:',
-
-        supplierId
-
-      );
 
 
 
@@ -1184,8 +1168,6 @@ export const updateConsumerLiveLocation = async (
   } catch (error: any) {
 
     if (isOfflineError(error)) {
-
-      console.log('[Chat] Offline — live location queued for sync');
 
       return { success: true };
 
