@@ -1,70 +1,108 @@
 {
   "expo": {
     "name": "GasAround",
+
     "slug": "GasAround",
+
     "version": "1.0.0",
+
     "orientation": "portrait",
-    "scheme": "gasaround",                        
+
+    "scheme": "gasaround",
+
     "userInterfaceStyle": "automatic",
+
     "ios": {
       "supportsTablet": true,
+
       "infoPlist": {
         "NSCallKitUsageDescription": "This app needs access to make phone calls to suppliers.",
+
         "NSLocationWhenInUseUsageDescription": "This app uses your location (when enabled) to show nearby gas suppliers."
       }
     },
+
     "android": {
       "softwareKeyboardLayoutMode": "resize",
+
+      "icon": "./assets/images/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundColor": "#FFFFFF"
+      },
+
       "config": {
         "googleMaps": {
-          "apiKey": "process.env.GOOGLE_MAPS_API_KEY"
+          "apiKey": "AIzaSyCxJS7O0KTa8EPKImLjoJ1cLfozf2MvjKQ"
         }
       },
+
       "permissions": [
         "android.permission.CALL_PHONE",
+
         "android.permission.ACCESS_FINE_LOCATION",
+
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
+
       "predictiveBackGestureEnabled": false,
+
       "package": "com.lamech_kosgei.GasAround",
+
       "intentFilters": [
         {
           "action": "VIEW",
+
           "data": [
             {
               "scheme": "gasaround"
             }
           ],
+
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
+
     "web": {
       "output": "static",
+
       "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
+
       "expo-notifications",
+
       [
         "expo-splash-screen",
+
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 400,
+          "image": "./assets/images/favicon.png",
+
+          "imageWidth": 300,
+
           "resizeMode": "contain",
+
           "backgroundColor": "#FFFFFF",
+
           "dark": {
             "backgroundColor": "#1A2A53",
-            "image": "./assets/images/splash-icon.png"
+
+            "image": "./assets/images/favicon.png"
           }
         }
       ]
     ],
+
     "experiments": {
       "typedRoutes": true
     },
+
     "extra": {
       "router": {},
+
       "eas": {
         "projectId": "61fd7208-df41-4f19-a225-3b3b1ef11382"
       }

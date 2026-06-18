@@ -90,9 +90,13 @@ export default function ConsumerLogin() {
         // Success haptic feedback
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // INSTANT NAVIGATION: Go to consumer home
+        // Wait for session to be fully persisted before navigation
+        // This prevents race conditions in production builds
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // NAVIGATE: Go to consumer home
         setIsLoading(false);
-        setImmediate(() => router.replace('/(tabs)'));
+        router.replace('/(tabs)');
         return;
       } else if (result.emailNotVerified) {
         // Email not verified - show detailed instructions

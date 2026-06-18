@@ -1,15 +1,21 @@
-import { Image } from 'expo-image';
-import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-native';
+import { Image } from "expo-image";
+import { useEffect, useRef } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 interface SplashScreenProps {
   message?: string;
   onAnimationComplete?: () => void;
 }
 
-export function SplashScreen({ 
-  message = 'Searching for nearby vendors...',
-  onAnimationComplete 
+export function SplashScreen({
+  message = "Searching for nearby vendors...",
+  onAnimationComplete,
 }: SplashScreenProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -38,20 +44,20 @@ export function SplashScreen({
 
   return (
     <View style={styles.container}>
-      <Animated.View 
+      <Animated.View
         style={[
           styles.content,
           {
             opacity: fadeAnim,
             transform: [{ scale: scaleAnim }],
-          }
+          },
         ]}
       >
         {/* Logo Container with Orange Circle */}
         <View style={styles.logoContainer}>
           <View style={styles.circle}>
             <Image
-              source={require('@/assets/images/icon.png')}
+              source={require("../assets/images/android-icon-foreground.png")}
               style={styles.logo}
               contentFit="contain"
             />
@@ -65,11 +71,7 @@ export function SplashScreen({
         <Text style={styles.message}>{message}</Text>
 
         {/* Loading Indicator */}
-        <ActivityIndicator 
-          size="small" 
-          color="#F97316" 
-          style={styles.loader}
-        />
+        <ActivityIndicator size="small" color="#F97316" style={styles.loader} />
       </Animated.View>
     </View>
   );
@@ -78,12 +80,12 @@ export function SplashScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 40,
   },
   logoContainer: {
@@ -93,11 +95,11 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: '#FFF7ED', // Light orange background
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#FFF7ED", // Light orange background
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 4,
-    borderColor: '#F97316', // Orange border
+    borderColor: "#F97316", // Orange border
   },
   logo: {
     width: 120,
@@ -105,16 +107,16 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1E3A5F', // Dark blue
+    fontWeight: "bold",
+    color: "#1E3A5F", // Dark blue
     marginBottom: 12,
     letterSpacing: -0.5,
   },
   message: {
     fontSize: 16,
-    color: '#6B7280', // Gray
+    color: "#6B7280", // Gray
     marginBottom: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   loader: {
     marginTop: 8,
