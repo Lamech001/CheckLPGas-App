@@ -13,17 +13,17 @@ import { applyActionCode, checkActionCode } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 
 import {
-  ActivityIndicator,
+    ActivityIndicator,
 
-  Alert,
+    Alert,
 
-  StyleSheet,
+    StyleSheet,
 
-  Text,
+    Text,
 
-  TouchableOpacity,
+    TouchableOpacity,
 
-  View
+    View
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -229,6 +229,22 @@ export default function VerifyEmailScreen() {
           setIsVerified(true);
 
           setTimeout(() => {
+
+            // Persist local session marker for offline-first startup
+            const roleResult = role || 'consumer';
+            try {
+              import('@/services/persistenceSessionService')
+                .then(({ persistVerifiedSession }) =>
+                  persistVerifiedSession({
+                    role: roleResult === 'supplier' ? 'supplier' : 'consumer',
+                    uid: user.uid,
+                    emailVerified: true,
+                  })
+                )
+                .catch(() => {});
+            } catch {
+              // Silent fail - navigation still happens
+            }
 
             if (role === 'supplier') {
 

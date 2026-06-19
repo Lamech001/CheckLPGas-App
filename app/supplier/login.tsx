@@ -1,27 +1,27 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
-import { signInWithEmail } from '@/services/authService';
-import type { PersistentSession } from '@/services/persistenceSessionService';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { usePathname, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { AppStatusBar } from "@/components/AppStatusBar";
+import { signInWithEmail } from "@/services/authService";
+import type { PersistentSession } from "@/services/persistenceSessionService";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { usePathname, useRouter } from "expo-router";
+import { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SupplierLogin() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +42,10 @@ export default function SupplierLogin() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      setError('Please enter both email and password');
+      setError("Please enter both email and password");
       return;
     }
-    
+
     setIsLoading(true);
     setError(null);
 
@@ -57,21 +57,22 @@ export default function SupplierLogin() {
 
       if (result.success) {
         // Validate that user is actually a supplier, not a consumer
-        if (result.role === 'consumer') {
+        if (result.role === "consumer") {
           setIsLoading(false);
           Alert.alert(
-            'Wrong Login Portal',
-            'You are registered as a consumer. Please use the consumer login instead.',
-            [{ text: 'OK', style: 'default' }]
+            "Wrong Login Portal",
+            "You are registered as a consumer. Please use the consumer login instead.",
+            [{ text: "OK", style: "default" }],
           );
           return;
         }
         // Persist correct local session marker so startup/router does not redirect to consumer.
         try {
-          const { persistVerifiedSession } = await import('@/services/persistenceSessionService');
-          const sess: Omit<PersistentSession, 'createdAt' | 'updatedAt'> = {
-            role: 'supplier',
-            uid: result.user?.uid || '',
+          const { persistVerifiedSession } =
+            await import("@/services/persistenceSessionService");
+          const sess: Omit<PersistentSession, "createdAt" | "updatedAt"> = {
+            role: "supplier",
+            uid: result.user?.uid || "",
             emailVerified: true,
           };
           // Fire-and-forget persistence; login already succeeded.
@@ -82,9 +83,9 @@ export default function SupplierLogin() {
 
         // Fetch and cache user data for offline access
         try {
-          const { getUserData } = await import('@/services/authService');
-          const { cacheUserProfile } = await import('@/services/cacheService');
-          const userData = await getUserData(result.user?.uid || '');
+          const { getUserData } = await import("@/services/authService");
+          const { cacheUserProfile } = await import("@/services/cacheService");
+          const userData = await getUserData(result.user?.uid || "");
           if (userData) {
             await cacheUserProfile(userData);
           }
@@ -92,36 +93,54 @@ export default function SupplierLogin() {
           // Ignore caching failures; login already succeeded.
         }
 
+        // Prefetch supplier dashboard data for offline-first instant dashboard
+        try {
+          const { getSupplierData } =
+            await import("@/services/supplierAuthService");
+          const uid = result.user?.uid || "";
+          if (uid) {
+            const res = await getSupplierData(uid);
+            // getSupplierData itself persists offline cache on success
+            if (!res?.success) {
+              // ignore
+            }
+          }
+        } catch {
+          // Ignore caching failures; navigation should still work.
+        }
+
         // INSTANT NAVIGATION: Go to supplier dashboard (orders are accessible from dashboard)
         setIsLoading(false);
-        await safeReplace('/supplier/dashboard');
+        await safeReplace("/supplier/dashboard");
         return;
-
-
-
       } else if (result.emailNotVerified) {
         Alert.alert(
-          'Email Not Verified',
-          'Please verify your email before logging in.\n\n' +
-          'We\'ve sent a new verification link to your email.',
-          [{ text: 'OK', style: 'default' }]
+          "Email Not Verified",
+          "Please verify your email before logging in.\n\n" +
+            "We've sent a new verification link to your email.",
+          [{ text: "OK", style: "default" }],
         );
-      } else if (result.error === 'offline') {
+      } else if (result.error === "offline") {
         setIsLoading(false);
-        router.replace('/supplier/dashboard');
+        router.replace("/supplier/dashboard");
         return;
       } else {
-        setError(result.error || 'Login failed. Please try again.');
+        setError(result.error || "Login failed. Please try again.");
       }
     } catch (err: any) {
-      if (err.message?.includes('network')) {
-        setError('Network error. Please check your internet connection.');
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('Invalid email or password. Please try again.');
-      } else if (err.code === 'auth/too-many-requests') {
-        setError('Too many failed attempts. Please try again later.');
+      if (err.message?.includes("network")) {
+        setError("Network error. Please check your internet connection.");
+      } else if (
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/wrong-password"
+      ) {
+        setError("Invalid email or password. Please try again.");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later.");
       } else {
-        setError(err.message || 'An error occurred during login. Please try again.');
+        setError(
+          err.message || "An error occurred during login. Please try again.",
+        );
       }
     } finally {
       setIsLoading(false);
@@ -130,33 +149,39 @@ export default function SupplierLogin() {
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      Alert.alert('Enter Email', 'Please enter your email address to reset your password.');
+      Alert.alert(
+        "Enter Email",
+        "Please enter your email address to reset your password.",
+      );
       return;
     }
 
     try {
-      const { resetPassword } = await import('@/services/authService');
+      const { resetPassword } = await import("@/services/authService");
       const result = await resetPassword(email.trim());
-      
+
       if (result.success) {
-        Alert.alert('Password Reset Email Sent', 'We\'ve sent a password reset link to your email address.');
+        Alert.alert(
+          "Password Reset Email Sent",
+          "We've sent a password reset link to your email address.",
+        );
       } else {
-        Alert.alert('Error', result.error || 'Failed to send reset email');
+        Alert.alert("Error", result.error || "Failed to send reset email");
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to send reset email');
+      Alert.alert("Error", err.message || "Failed to send reset email");
     }
   };
 
   const handleSignUp = () => {
-    router.push('/supplier/signup');
+    router.push("/supplier/signup");
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
         <ScrollView
@@ -176,7 +201,9 @@ export default function SupplierLogin() {
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.title}>Supplier Login</Text>
-              <Text style={styles.subtitle}>Access your business dashboard</Text>
+              <Text style={styles.subtitle}>
+                Access your business dashboard
+              </Text>
             </View>
 
             {/* Error Message */}
@@ -228,7 +255,7 @@ export default function SupplierLogin() {
                     style={styles.eyeIcon}
                   >
                     <FontAwesome5
-                      name={showPassword ? 'eye-slash' : 'eye'}
+                      name={showPassword ? "eye-slash" : "eye"}
                       size={18}
                       color="#666"
                     />
@@ -248,7 +275,8 @@ export default function SupplierLogin() {
               <TouchableOpacity
                 style={[
                   styles.loginButton,
-                  (!email || !password || isLoading) && styles.loginButtonDisabled,
+                  (!email || !password || isLoading) &&
+                    styles.loginButtonDisabled,
                 ]}
                 onPress={handleLogin}
                 disabled={!email || !password || isLoading}
@@ -257,7 +285,9 @@ export default function SupplierLogin() {
                 {isLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color="#fff" />
-                    <Text style={[styles.loginButtonText, styles.loadingText]}>Logging in...</Text>
+                    <Text style={[styles.loginButtonText, styles.loadingText]}>
+                      Logging in...
+                    </Text>
                   </View>
                 ) : (
                   <Text style={styles.loginButtonText}>Log In</Text>
@@ -274,7 +304,9 @@ export default function SupplierLogin() {
 
             {/* Sign Up Link */}
             <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don&apos;t have an account? </Text>
+              <Text style={styles.signupText}>
+                Don&apos;t have an account?{" "}
+              </Text>
               <TouchableOpacity onPress={handleSignUp}>
                 <Text style={styles.signupLink}>Sign Up</Text>
               </TouchableOpacity>
@@ -289,31 +321,31 @@ export default function SupplierLogin() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E65100',
+    backgroundColor: "#E65100",
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingVertical: 40,
   },
   logoSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 30,
   },
   logoIcon: {
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -321,75 +353,75 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
     letterSpacing: 1,
   },
   cardContainer: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
     paddingHorizontal: 28,
     paddingVertical: 32,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 12,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 28,
   },
   title: {
     fontSize: 26,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#ffebee',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#ffebee",
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
   errorText: {
     flex: 1,
-    color: '#d32f2f',
+    color: "#d32f2f",
     fontSize: 14,
   },
   formContainer: {
-    width: '100%',
+    width: "100%",
   },
   inputWrapper: {
     marginBottom: 16,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: "#e9ecef",
     paddingHorizontal: 14,
     paddingVertical: 4,
   },
   inputIconContainer: {
     width: 36,
-    alignItems: 'center',
+    alignItems: "center",
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: "#333",
     paddingVertical: 14,
     paddingHorizontal: 8,
   },
@@ -397,71 +429,71 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   forgotPasswordContainer: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     marginBottom: 20,
     marginTop: 4,
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: '#FF9800',
-    fontWeight: '600',
+    color: "#FF9800",
+    fontWeight: "600",
   },
   loginButton: {
-    backgroundColor: '#FF9800',
+    backgroundColor: "#FF9800",
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#FF9800',
+    alignItems: "center",
+    shadowColor: "#FF9800",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   loginButtonDisabled: {
-    backgroundColor: '#ffcc80',
+    backgroundColor: "#ffcc80",
     shadowOpacity: 0,
     elevation: 0,
   },
   loginButtonText: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingText: {
     marginLeft: 10,
   },
   dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e9ecef',
+    backgroundColor: "#e9ecef",
   },
   dividerText: {
     fontSize: 12,
-    color: '#999',
+    color: "#999",
     marginHorizontal: 12,
   },
   signupContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   signupText: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   signupLink: {
     fontSize: 14,
-    color: '#FF9800',
-    fontWeight: 'bold',
+    color: "#FF9800",
+    fontWeight: "bold",
   },
 });

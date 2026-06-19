@@ -1,56 +1,71 @@
+import { AppStatusBar } from "@/components/AppStatusBar";
 
+import { NotificationsPanel } from "@/components/consumer/NotificationsPanel";
 
-import { AppStatusBar } from '@/components/AppStatusBar';
+import { SideMenu } from "@/components/consumer/SideMenu";
 
-import { NotificationsPanel } from '@/components/consumer/NotificationsPanel';
+import { SupplierList } from "@/components/consumer/SupplierList";
 
-import { SideMenu } from '@/components/consumer/SideMenu';
+import { SupplierMap } from "@/components/consumer/SupplierMap";
 
-import { SupplierList } from '@/components/consumer/SupplierList';
+import { auth } from "@/config/firebase";
 
-import { SupplierMap } from '@/components/consumer/SupplierMap';
+import {
+  AppColors,
+  AppConstants,
+  AppShadows,
+  AppSizes,
+} from "@/constants/appTheme";
 
-import { auth } from '@/config/firebase';
+import { useSuppliers } from "@/hooks/useSuppliers";
 
-import { AppColors, AppConstants, AppShadows, AppSizes } from '@/constants/appTheme';
+import { getUserRole } from "@/services/authService";
 
+import {
+  cacheUserLocation,
+  getCachedUserLocation,
+} from "@/services/cacheService";
 
+import { getCurrentLocation } from "@/services/locationService";
 
-import { useSuppliers } from '@/hooks/useSuppliers';
+import {
+  notificationListeners,
+  requestNotificationPermissions,
+  sendLocalNotification,
+  setupNotifications,
+} from "@/services/notificationService";
 
-import { getUserRole } from '@/services/authService';
+import { FontAwesome5 } from "@expo/vector-icons";
 
-import { cacheUserLocation, getCachedUserLocation } from '@/services/cacheService';
+import { useRouter } from "expo-router";
 
-import { getCurrentLocation } from '@/services/locationService';
+import NetInfo from "@react-native-community/netinfo";
 
-import { notificationListeners, requestNotificationPermissions, sendLocalNotification, setupNotifications } from '@/services/notificationService';
+import { useCallback, useEffect, useState } from "react";
 
-import { FontAwesome5 } from '@expo/vector-icons';
-
-import { useRouter } from 'expo-router';
-
-import NetInfo from '@react-native-community/netinfo';
-
-import { useCallback, useEffect, useState } from 'react';
-
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
-
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const DEFAULT_RADIUS_KM = AppConstants.defaultRadiusKm;
 
-
-
 export default function ConsumerHomeScreen() {
-
   const router = useRouter();
 
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const [isLocating, setIsLocating] = useState(true);
 
-  const [userName, setUserName] = useState('');
+  const [userName, setUserName] = useState("");
 
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -62,12 +77,9 @@ export default function ConsumerHomeScreen() {
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-
-
   // Use new cached suppliers hook with built-in real-time updates
 
   const {
-
     suppliers,
 
     isLoading: suppliersLoading,
@@ -81,9 +93,7 @@ export default function ConsumerHomeScreen() {
     lastUpdated,
 
     isStale,
-
   } = useSuppliers({
-
     latitude: userLocation?.latitude ?? null,
 
     longitude: userLocation?.longitude ?? null,
@@ -91,342 +101,245 @@ export default function ConsumerHomeScreen() {
     radiusKm: DEFAULT_RADIUS_KM,
 
     enabled: !!userLocation,
-
   });
 
-
-
+  // Instant profile bootstrap from local cache (offline-first)
   useEffect(() => {
+    let cancelled = false;
 
-    const user = auth.currentUser;
+    const loadCachedProfile = async () => {
+      try {
+        const { getCachedUserProfile } =
+          await import("@/services/cacheService");
+        const profile = await getCachedUserProfile<{ displayName?: string }>();
+        if (cancelled) return;
 
-    if (user?.displayName) {
+        const cachedName = profile?.displayName;
+        if (cachedName) {
+          setUserName(cachedName.split(" ")[0]); // First name only
+        }
+      } catch {
+        // ignore
+      }
+    };
 
-      setUserName(user.displayName.split(' ')[0]); // First name only
+    void loadCachedProfile();
 
-    }
-
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-
+  // Update name when Firebase auth is ready
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user?.displayName) {
+      setUserName(user.displayName.split(" ")[0]); // First name only
+    }
+  }, []);
 
   // Setup push notifications in background - don't block UI
 
   useEffect(() => {
-
     // Defer notifications setup to prioritize UI rendering
 
     const timeoutId = setTimeout(() => {
-
       const initNotifications = async () => {
-
         const hasPermission = await requestNotificationPermissions();
 
         if (hasPermission) {
-
           await setupNotifications();
-
-          
 
           // Send welcome notification
 
           await sendLocalNotification(
+            "Welcome to GasAround!",
 
-            'Welcome to GasAround!',
+            "You will receive alerts when new suppliers are available near you.",
 
-            'You will receive alerts when new suppliers are available near you.',
-
-            { type: 'welcome' }
-
+            { type: "welcome" },
           );
-
         }
-
       };
 
-      
-
       initNotifications();
-
     }, 1000); // Delay 1 second after UI renders
 
-    
-
     return () => clearTimeout(timeoutId);
-
   }, []);
-
-
 
   // Listen for notifications
 
   useEffect(() => {
-
     const unsubscribe = notificationListeners(
-
       (_notification) => {
-
         // New notification received
 
         setUnreadNotifications((prev) => prev + 1);
-
       },
 
       (response) => {
-
         // User tapped notification
 
-        const data = response.notification.request.content.data as Record<string, any>;
+        const data = response.notification.request.content.data as Record<
+          string,
+          any
+        >;
 
-
-
-        if (data?.type === 'new_supplier') {
-
+        if (data?.type === "new_supplier") {
           // Could navigate to specific supplier
 
-          Alert.alert('New Supplier!', `Check out ${data.supplierName}`);
+          Alert.alert("New Supplier!", `Check out ${data.supplierName}`);
 
           return;
-
         }
-
-
 
         // If supplier receives an order notification and they somehow land here,
 
         // deep link to orders/chat to ensure they "get the order".
 
-        if (data?.type === 'new_order' && data?.supplierId) {
-
+        if (data?.type === "new_order" && data?.supplierId) {
           const conversationId = data?.conversationId as string | undefined;
 
           if (conversationId) {
-
             router.replace({
-
-              pathname: '/supplier/chat',
+              pathname: "/supplier/chat",
 
               params: {
-
                 conversationId,
-
               },
-
             });
-
           } else {
-
-            router.replace('/supplier/orders');
-
+            router.replace("/supplier/orders");
           }
-
         }
-
-      }
-
-
-
+      },
     );
 
-    
-
     return () => unsubscribe();
-
   }, []);
-
-
 
   // Quick role check in background - don't block UI
 
   useEffect(() => {
-
     // Defer role check to not block initial render
 
     const timeoutId = setTimeout(() => {
-
       const checkRoleAndRedirect = async () => {
-
         const user = auth.currentUser;
 
         if (!user) return;
 
-
-
         try {
-
           // Check global hint first for instant response
 
           // @ts-ignore
 
           const hintedRole = global.userRoleHint;
 
-          if (hintedRole === 'supplier') {
-
-            router.replace('/supplier/dashboard');
+          if (hintedRole === "supplier") {
+            router.replace("/supplier/dashboard");
 
             return;
-
           }
-
-
 
           // Fallback to Firestore check
 
           const roleResult = await getUserRole(user.uid);
 
-          if (roleResult.role === 'supplier') {
-
-            router.replace('/supplier/dashboard');
-
+          if (roleResult.role === "supplier") {
+            router.replace("/supplier/dashboard");
           }
-
         } catch {
-
           // Ignore errors - stay on consumer page
-
         }
-
       };
 
-
-
       checkRoleAndRedirect();
-
     }, 200);
 
-
-
     return () => clearTimeout(timeoutId);
-
   }, [router]);
-
-
-
-
 
   // Load location - cached first for instant display, then fresh
 
   useEffect(() => {
-
     const loadLocation = async () => {
-
       // INSTANT: Try cached location first
 
-      const cachedLocation = await getCachedUserLocation<{ latitude: number; longitude: number }>();
+      const cachedLocation = await getCachedUserLocation<{
+        latitude: number;
+        longitude: number;
+      }>();
 
       if (cachedLocation) {
-
         setUserLocation(cachedLocation);
 
         setIsLocating(false); // Show UI immediately with cached location
-
       } else {
-
         setIsLocating(true);
-
       }
-
-
 
       // BACKGROUND: Get fresh location without blocking UI
 
       const location = await getCurrentLocation();
 
       if (location) {
-
         setUserLocation(location);
 
         await cacheUserLocation(location);
-
       }
 
-      
-
       setIsLocating(false);
-
     };
 
-
-
     loadLocation();
-
   }, []);
-
-
 
   // Monitor network status for WhatsApp-like offline behavior
 
   useEffect(() => {
-
-    const unsubscribe = NetInfo.addEventListener(state => {
-
-      const isConnected = state.isConnected === true && state.isInternetReachable === true;
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const isConnected =
+        state.isConnected === true && state.isInternetReachable === true;
 
       setIsOnline(isConnected);
-
-      
 
       // When coming back online, refresh data
 
       if (isConnected && userLocation) {
-
         setIsSyncing(true);
 
         refreshSuppliers().finally(() => {
-
           setIsSyncing(false);
-
         });
-
       }
-
     });
 
-
-
     return () => unsubscribe();
-
   }, [userLocation, refreshSuppliers]);
-
-
 
   // Real-time updates are now handled internally by useSuppliers hook
 
   // No need for manual subscription management
 
-
-
   // Auto-refresh every 10 minutes to ensure fresh data while keeping app responsive
 
   useEffect(() => {
-
     if (!userLocation) return;
-
-
 
     const REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes - optimized for <2s response
 
     const intervalId = setInterval(() => {
-
       refreshSuppliers();
-
     }, REFRESH_INTERVAL);
 
-
-
     return () => clearInterval(intervalId);
-
   }, [userLocation, refreshSuppliers]);
 
-
-
   const handleRefresh = useCallback(() => {
-
     refreshSuppliers();
-
   }, [refreshSuppliers]);
-
-
 
   // Show UI immediately with cached data, refresh in background
 
@@ -436,338 +349,248 @@ export default function ConsumerHomeScreen() {
 
   const error = suppliersError;
 
-
-
   if (showLoading) {
-
     return (
-
       <View style={styles.loadingContainer}>
-
         <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
 
         <ActivityIndicator size="large" color={AppColors.primary} />
 
-        <Text style={styles.loadingText}>Finding gas suppliers near you...</Text>
-
+        <Text style={styles.loadingText}>
+          Finding gas suppliers near you...
+        </Text>
       </View>
-
     );
-
   }
 
-
-
   if (error) {
-
     return (
-
       <View style={styles.errorContainer}>
-
         <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
 
-        <FontAwesome5 name="exclamation-circle" size={48} color={AppColors.errorLight} />
+        <FontAwesome5
+          name="exclamation-circle"
+          size={48}
+          color={AppColors.errorLight}
+        />
 
         <Text style={styles.errorText}>{error.message}</Text>
 
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
-
           <Text style={styles.retryButtonText}>Try Again</Text>
-
         </TouchableOpacity>
-
       </View>
-
     );
-
   }
 
-
-
   if (!userLocation) {
-
     return (
-
       <View style={styles.errorContainer}>
-
         <AppStatusBar backgroundColor="#007AFF" barStyle="dark-content" />
 
         <Text style={styles.errorText}>Location not available</Text>
 
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
-
           <Text style={styles.retryButtonText}>Retry</Text>
-
         </TouchableOpacity>
-
       </View>
-
     );
-
   }
 
-
-
   return (
-
     <View style={styles.container}>
-
       {/* Minimal header with just buttons */}
 
       <View style={styles.minimalHeader}>
-
         <View style={styles.minimalHeaderSide}>
-
-          <TouchableOpacity style={styles.menuButton} onPress={() => setMenuVisible(true)}>
-
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => setMenuVisible(true)}
+          >
             <FontAwesome5 name="bars" size={24} color={AppColors.primary} />
-
           </TouchableOpacity>
-
         </View>
 
-
-
         <View style={styles.minimalHeaderCenter}>
-
           <Text style={styles.brandText}>GasAround</Text>
 
           {!isOnline && (
-
             <View style={styles.offlineIndicator}>
-
-              <FontAwesome5 name="wifi-slash" size={10} color={AppColors.errorLight} />
+              <FontAwesome5
+                name="wifi-slash"
+                size={10}
+                color={AppColors.errorLight}
+              />
 
               <Text style={styles.offlineText}>Offline</Text>
-
             </View>
-
           )}
 
           {isSyncing && isOnline && (
-
             <View style={styles.syncIndicator}>
-
               <FontAwesome5 name="sync" size={10} color={AppColors.primary} />
 
               <Text style={styles.syncText}>Syncing...</Text>
-
             </View>
-
           )}
-
         </View>
 
-
-
         <View style={styles.minimalHeaderSide}>
-
-          <TouchableOpacity style={styles.notificationButton} onPress={() => setNotificationsVisible(true)}>
-
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => setNotificationsVisible(true)}
+          >
             <FontAwesome5 name="bell" size={20} color={AppColors.primary} />
 
             {unreadNotifications > 0 && (
-
               <View style={styles.badge}>
-
-                <Text style={styles.badgeText}>{unreadNotifications > 99 ? '99+' : unreadNotifications}</Text>
-
+                <Text style={styles.badgeText}>
+                  {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                </Text>
               </View>
-
             )}
-
           </TouchableOpacity>
-
         </View>
-
       </View>
 
-
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Map Section */}
 
         <View style={styles.mapContainer}>
-
           <SupplierMap
-
             userLocation={userLocation}
-
             suppliers={suppliers || []}
-
             selectedSize="all"
-
             radiusKm={DEFAULT_RADIUS_KM}
-
           />
-
         </View>
-
-
 
         {/* Supplier List Section */}
 
         <View style={styles.listSection}>
-
           <View style={styles.listHeader}>
-
             <View>
-
               <Text style={styles.listTitle}>Nearby Suppliers</Text>
 
               {lastUpdated && (
-
                 <Text style={styles.lastUpdatedText}>
-
-                  Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-
+                  Updated{" "}
+                  {lastUpdated.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </Text>
-
               )}
 
-              {isStale && (
-
-                <Text style={styles.staleText}>Updating...</Text>
-
-              )}
-
+              {isStale && <Text style={styles.staleText}>Updating...</Text>}
             </View>
 
-            <TouchableOpacity 
-
-              onPress={handleRefresh} 
-
-              style={[styles.refreshButton, suppliersFetching && styles.refreshButtonActive]}
-
+            <TouchableOpacity
+              onPress={handleRefresh}
+              style={[
+                styles.refreshButton,
+                suppliersFetching && styles.refreshButtonActive,
+              ]}
               disabled={suppliersFetching}
-
             >
-
-              <FontAwesome5 
-
-                name={suppliersFetching ? "spinner" : "sync-alt"} 
-
-                size={14} 
-
-                color={suppliersFetching ? AppColors.textTertiary : AppColors.primary} 
-
+              <FontAwesome5
+                name={suppliersFetching ? "spinner" : "sync-alt"}
+                size={14}
+                color={
+                  suppliersFetching ? AppColors.textTertiary : AppColors.primary
+                }
               />
 
-              <Text style={[styles.refreshText, suppliersFetching && styles.refreshTextDisabled]}>
-
-                {suppliersFetching ? 'Updating...' : 'Refresh'}
-
+              <Text
+                style={[
+                  styles.refreshText,
+                  suppliersFetching && styles.refreshTextDisabled,
+                ]}
+              >
+                {suppliersFetching ? "Updating..." : "Refresh"}
               </Text>
-
             </TouchableOpacity>
-
           </View>
 
-          <SupplierList suppliers={suppliers || []} loading={suppliersLoading} />
-
+          <SupplierList
+            suppliers={suppliers || []}
+            loading={suppliersLoading}
+          />
         </View>
-
       </ScrollView>
-
-
 
       {/* Side Menu */}
 
       <SideMenu
-
         visible={menuVisible}
-
         onClose={() => setMenuVisible(false)}
-
         userName={userName}
-
       />
-
-
 
       {/* Notifications Panel */}
 
       <NotificationsPanel
-
         visible={notificationsVisible}
-
         onClose={() => setNotificationsVisible(false)}
-
         onUnreadCountChange={setUnreadNotifications}
-
       />
-
     </View>
-
   );
-
 }
 
-
-
 const styles = StyleSheet.create({
-
   container: {
-
     flex: 1,
 
     backgroundColor: AppColors.background,
-
   },
 
   loadingContainer: {
-
     flex: 1,
 
-    justifyContent: 'center',
+    justifyContent: "center",
 
-    alignItems: 'center',
+    alignItems: "center",
 
     backgroundColor: AppColors.white,
-
   },
 
   loadingText: {
-
     marginTop: AppSizes.spacingLarge,
 
     fontSize: AppSizes.fontXLarge,
 
     color: AppColors.textSecondary,
-
   },
 
   errorContainer: {
-
     flex: 1,
 
-    justifyContent: 'center',
+    justifyContent: "center",
 
-    alignItems: 'center',
+    alignItems: "center",
 
     backgroundColor: AppColors.white,
 
     padding: AppSizes.spacingXXLarge,
-
   },
 
   errorText: {
-
     marginTop: AppSizes.spacingLarge,
 
     fontSize: AppSizes.fontXLarge,
 
     color: AppColors.textSecondary,
 
-    textAlign: 'center',
+    textAlign: "center",
 
     marginBottom: AppSizes.spacingXXLarge,
-
   },
 
   retryButton: {
-
     backgroundColor: AppColors.primary,
 
     paddingHorizontal: AppSizes.spacingXXLarge,
@@ -775,21 +598,17 @@ const styles = StyleSheet.create({
     paddingVertical: AppSizes.spacingMedium,
 
     borderRadius: AppSizes.radiusMedium,
-
   },
 
   retryButtonText: {
-
     color: AppColors.white,
 
     fontSize: AppSizes.fontXLarge,
 
-    fontWeight: '600',
-
+    fontWeight: "600",
   },
 
   header: {
-
     backgroundColor: AppColors.white,
 
     paddingTop: 60,
@@ -801,28 +620,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
 
     borderBottomColor: AppColors.border,
-
   },
 
   headerTop: {
+    flexDirection: "row",
 
-    flexDirection: 'row',
+    justifyContent: "space-between",
 
-    justifyContent: 'space-between',
-
-    alignItems: 'center',
+    alignItems: "center",
 
     marginBottom: AppSizes.spacingMedium,
-
   },
 
   minimalHeader: {
+    flexDirection: "row",
 
-    flexDirection: 'row',
+    justifyContent: "space-between",
 
-    justifyContent: 'space-between',
-
-    alignItems: 'center',
+    alignItems: "center",
 
     paddingHorizontal: AppSizes.spacingLarge,
 
@@ -831,108 +646,86 @@ const styles = StyleSheet.create({
     paddingBottom: AppSizes.spacingSmall,
 
     backgroundColor: AppColors.background,
-
   },
 
   minimalHeaderSide: {
-
     width: 48,
 
-    alignItems: 'flex-start',
-
+    alignItems: "flex-start",
   },
 
   minimalHeaderCenter: {
-
     flex: 1,
 
-    alignItems: 'center',
+    alignItems: "center",
 
-    justifyContent: 'center',
-
+    justifyContent: "center",
   },
 
   brandText: {
-
     fontSize: 26,
 
-    fontWeight: '700',
+    fontWeight: "700",
 
     color: AppColors.primary,
-
   },
 
   offlineIndicator: {
+    flexDirection: "row",
 
-    flexDirection: 'row',
-
-    alignItems: 'center',
+    alignItems: "center",
 
     gap: 4,
 
     marginTop: 2,
-
   },
 
   offlineText: {
-
     fontSize: 10,
 
     color: AppColors.errorLight,
 
-    fontWeight: '600',
-
+    fontWeight: "600",
   },
 
   syncIndicator: {
+    flexDirection: "row",
 
-    flexDirection: 'row',
-
-    alignItems: 'center',
+    alignItems: "center",
 
     gap: 4,
 
     marginTop: 2,
-
   },
 
   syncText: {
-
     fontSize: 10,
 
     color: AppColors.primary,
 
-    fontWeight: '600',
-
+    fontWeight: "600",
   },
 
   menuButton: {
-
     padding: AppSizes.spacingSmall,
-
   },
 
   logo: {
-
     fontSize: AppSizes.fontTitle,
 
-    fontWeight: '700',
+    fontWeight: "700",
 
     color: AppColors.primary,
-
   },
 
   notificationButton: {
-
     padding: AppSizes.spacingSmall,
 
-    position: 'relative',
-
+    position: "relative",
   },
 
   badge: {
-
-    position: 'absolute',
+    position: "absolute",
 
     top: 0,
 
@@ -946,147 +739,116 @@ const styles = StyleSheet.create({
 
     height: 20,
 
-    justifyContent: 'center',
+    justifyContent: "center",
 
-    alignItems: 'center',
+    alignItems: "center",
 
     paddingHorizontal: 4,
-
   },
 
   badgeText: {
-
     color: AppColors.white,
 
     fontSize: AppSizes.fontXSmall,
 
-    fontWeight: 'bold',
-
+    fontWeight: "bold",
   },
 
   greeting: {
-
     fontSize: AppSizes.fontHeader,
 
-    fontWeight: '700',
+    fontWeight: "700",
 
     color: AppColors.textPrimary,
 
     marginBottom: AppSizes.spacingXS,
-
   },
 
   subtitle: {
-
     fontSize: AppSizes.fontMedium,
 
     color: AppColors.textSecondary,
-
   },
 
   scrollView: {
-
     flex: 1,
-
   },
 
   mapContainer: {
-
     height: 220,
 
     margin: AppSizes.spacingLarge,
 
     borderRadius: AppSizes.radiusXLarge,
 
-    overflow: 'hidden',
+    overflow: "hidden",
 
     ...AppShadows.medium,
-
   },
 
   listSection: {
-
     flex: 1,
 
     backgroundColor: AppColors.background,
-
   },
 
   listHeader: {
+    flexDirection: "row",
 
-    flexDirection: 'row',
+    justifyContent: "space-between",
 
-    justifyContent: 'space-between',
-
-    alignItems: 'center',
+    alignItems: "center",
 
     paddingHorizontal: AppSizes.spacingLarge,
 
     paddingVertical: AppSizes.spacingMedium,
-
   },
 
   listTitle: {
-
     fontSize: 18,
 
-    fontWeight: '700',
+    fontWeight: "700",
 
     color: AppColors.textPrimary,
-
   },
 
   refreshButton: {
+    flexDirection: "row",
 
-    flexDirection: 'row',
-
-    alignItems: 'center',
+    alignItems: "center",
 
     gap: AppSizes.spacingXS,
-
   },
 
   refreshText: {
-
     fontSize: AppSizes.fontMedium,
 
     color: AppColors.primary,
 
-    fontWeight: '500',
-
+    fontWeight: "500",
   },
 
   staleText: {
-
     fontSize: AppSizes.fontXSmall,
 
     color: AppColors.textTertiary,
 
     marginTop: AppSizes.spacingXS,
-
   },
 
   lastUpdatedText: {
-
     fontSize: AppSizes.fontXSmall,
 
     color: AppColors.textTertiary,
 
     marginTop: AppSizes.spacingXS,
-
   },
 
   refreshButtonActive: {
-
     opacity: 0.7,
-
   },
 
   refreshTextDisabled: {
-
     color: AppColors.textTertiary,
-
   },
-
 });
-

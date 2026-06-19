@@ -1,22 +1,28 @@
-import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { Platform, StatusBar as RNStatusBar } from 'react-native';
-import 'react-native-reanimated';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
+} from "@react-navigation/native";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import { Platform, StatusBar as RNStatusBar } from "react-native";
+import "react-native-reanimated";
 
-
-import { ConnectionIndicator } from '@/components/ConnectionIndicator';
-import { DeepLinkHandler } from '@/components/DeepLinkHandler';
-import { CacheProvider } from '@/contexts/CacheContext';
-import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
-import { sessionManager } from '@/services/sessionManager';
+import { ConnectionIndicator } from "@/components/ConnectionIndicator";
+import { DeepLinkHandler } from "@/components/DeepLinkHandler";
+import { CacheProvider } from "@/contexts/CacheContext";
+import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
+import { getPersistentSession } from "@/services/persistenceSessionService";
+import { sessionManager } from "@/services/sessionManager";
+import { useRouter } from "expo-router";
 
 // Initial route is index (WelcomeScreen) by default
 
 // Inner component that uses theme
 function AppContent() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
 
   // Initialize session manager for rich, smooth session handling
   useEffect(() => {
@@ -24,9 +30,39 @@ function AppContent() {
     return () => sessionManager.cleanup();
   }, []);
 
+  // WhatsApp-like persistence:
+  // If a verified consumer session marker exists on this device,
+  // skip login and go straight to the consumer dashboard.
   useEffect(() => {
-    if (Platform.OS === 'android') {
-      RNStatusBar.setBarStyle('dark-content', true);
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      try {
+        const session = await getPersistentSession();
+        if (cancelled) return;
+
+        if (
+          session?.role === "consumer" &&
+          session?.emailVerified &&
+          session?.uid
+        ) {
+          router.replace("/(tabs)");
+        }
+      } catch {
+        // Ignore and fall back to normal navigation
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      RNStatusBar.setBarStyle("dark-content", true);
       RNStatusBar.setTranslucent(false);
     }
   }, []);
@@ -35,7 +71,6 @@ function AppContent() {
     <NavigationThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
       <StatusBar style="dark" />
       <DeepLinkHandler>
-
         <ConnectionIndicator />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />

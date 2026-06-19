@@ -10,13 +10,18 @@ service cloud.firestore {
     }
 
     function isConversationParticipant(conversationId) {
+      // Field-safe participant check to avoid total denial if legacy docs miss fields.
       return isSignedIn() && exists(/databases/$(database)/documents/conversations/$(conversationId)) && (
-        get(/databases/$(database)/documents/conversations/$(conversationId)).data.consumerId == request.auth.uid ||
-        get(/databases/$(database)/documents/conversations/$(conversationId)).data.supplierId == request.auth.uid
+        (get(/databases/$(database)/documents/conversations/$(conversationId)).data.consumerId is string &&
+          get(/databases/$(database)/documents/conversations/$(conversationId)).data.consumerId == request.auth.uid) ||
+        (get(/databases/$(database)/documents/conversations/$(conversationId)).data.supplierId is string &&
+          get(/databases/$(database)/documents/conversations/$(conversationId)).data.supplierId == request.auth.uid)
       );
     }
 
     match /users/{userId} {
+
+
       allow read: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
       allow update: if isOwner(userId) && request.resource.data.uid == userId;
@@ -31,9 +36,10 @@ service cloud.firestore {
 
     match /conversations/{conversationId} {
       allow read: if isSignedIn() && (
-        resource.data.consumerId == request.auth.uid ||
-        resource.data.supplierId == request.auth.uid
+        (resource.data.consumerId is string && resource.data.consumerId == request.auth.uid) ||
+        (resource.data.supplierId is string && resource.data.supplierId == request.auth.uid)
       );
+
       allow create: if isSignedIn() && request.resource.data.consumerId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.consumerId == request.auth.uid ||

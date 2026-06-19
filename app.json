@@ -25,7 +25,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
 
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/images/favicon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#FFFFFF"
