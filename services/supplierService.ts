@@ -162,11 +162,15 @@ export const filterByCylinderSize = (
 
   
 
-  return suppliers.filter((supplier) =>
+  return suppliers
 
-    supplier.prices.some((price) => price.size === size && price.inStock)
+    .filter((supplier) =>
 
-  );
+      supplier.prices.some((price) => price.size === size && price.inStock)
+
+    )
+
+    .sort((a, b) => a.distance - b.distance);
 
 };
 

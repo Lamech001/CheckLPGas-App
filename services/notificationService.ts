@@ -32,7 +32,7 @@ Notifications.setNotificationHandler({
 
 const KENYAN_CONFIG = {
 
-  senderId: '722596547435',
+  senderId: '61fd7208-df41-4f19-a225-3b3b1ef11382', // Expo project ID from app.json
 
   defaultTitle: 'GasAround Kenya',
 

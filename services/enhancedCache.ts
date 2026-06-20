@@ -65,13 +65,13 @@ export const CACHE_TTL = {
     SESSION: 60 * 60 * 1000,    // 1 hour
     PERMISSIONS: 15 * 60 * 1000, // 15 minutes
   },
-  // Suppliers
+  // Suppliers - 30 minute TTL to reduce frequent updates
   SUPPLIERS: {
-    LIST: Number.POSITIVE_INFINITY,
-    DETAIL: Number.POSITIVE_INFINITY,
-    NEARBY: Number.POSITIVE_INFINITY,
-    PRICES: Number.POSITIVE_INFINITY,
-    FAVORITES: Number.POSITIVE_INFINITY,
+    LIST: 30 * 60 * 1000,       // 30 minutes
+    DETAIL: 30 * 60 * 1000,     // 30 minutes
+    NEARBY: 30 * 60 * 1000,     // 30 minutes
+    PRICES: 30 * 60 * 1000,     // 30 minutes
+    FAVORITES: 30 * 60 * 1000,  // 30 minutes
   },
   // User
   USER: {

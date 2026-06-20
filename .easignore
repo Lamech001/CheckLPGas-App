@@ -1,0 +1,93 @@
+# Dependencies
+node_modules/
+
+# Android/iOS native build directories (Crucial!)
+android/
+ios/
+
+# Expo caches
+.expo/
+
+# Local build artifacts & caches
+*.apk
+*.aab
+*.apks
+bundletool.jar
+.metro/
+
+# Environment files (if you manage secrets via EAS Dashboard)
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env
+
+# Expo build outputs
+dist/
+web-build/
+expo-env.d.ts
+
+# Native signing files
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.metro-health-check*
+
+# macOS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# Example app
+app-example
+
+# Git history (not needed for builds)
+.git/
+.gitignore
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation and notes
+README.md
+DEPLOYMENT_CHECKLIST.md
+TODO*.md
+*.patch.txt
+
+# GitHub workflows
+.github/
+
+# Firebase functions (if built separately)
+functions/
+
+# Cache directories
+.cache/
+.turbo/
+
+# Test files
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/coverage/
+
+# Misc
+.eslintrc*
+.prettierrc*
+.editorconfig

@@ -26,7 +26,7 @@ const roleLookupCache = new Map<
   Promise<{ role: "consumer" | "supplier" | null; error?: string }>
 >();
 
-const ROLE_CACHE_TTL = 60000; // 1 minute cache TTL for roles
+const ROLE_CACHE_TTL = Number.POSITIVE_INFINITY; // unlimited until logout
 
 const roleCacheExpiry = new Map<string, number>();
 

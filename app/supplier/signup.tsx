@@ -1,23 +1,24 @@
+import { AppStatusBar } from '@/components/AppStatusBar';
 import { getCurrentLocation } from '@/services/locationService';
+import { setupNotifications } from '@/services/notificationService';
 import { registerSupplier, SupplierRegistrationData } from '@/services/supplierAuthService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppStatusBar } from '@/components/AppStatusBar';
 
 interface PriceInput {
   size: 6 | 13 | 19;
@@ -39,6 +40,13 @@ export default function SupplierSignupScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+
+  // Setup push notifications for suppliers
+  useEffect(() => {
+    setupNotifications().catch((error: Error) => {
+      console.error('[Supplier Signup] Failed to setup notifications:', error);
+    });
+  }, []);
 
   // Form data
   const [enterpriseName, setEnterpriseName] = useState('');
@@ -430,7 +438,7 @@ export default function SupplierSignupScreen() {
               
               <TextInput
                 style={styles.priceInput}
-                placeholder="Refill Price (Ksh)"
+                placeholder="Refilling Price (Ksh)"
                 value={priceItem.price}
                 onChangeText={(value) => updatePrice(priceItem.size, 'price', value)}
                 keyboardType="numeric"

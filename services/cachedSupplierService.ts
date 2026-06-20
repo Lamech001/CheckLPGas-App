@@ -11,30 +11,33 @@
 import { db } from '@/config/firebase';
 
 import {
-  batchGetCache,
+    batchGetCache,
 
-  batchSetCache,
+    batchSetCache,
 
-  CACHE_KEYS,
+    CACHE_KEYS,
 
-  CACHE_TTL,
+    CACHE_TTL,
 
-  getCache,
+    getCache,
 
-  getOrFetch,
+    getOrFetch,
 
-  prefetchCache,
+    prefetchCache,
 
-  removeCache,
+    removeCache,
 
-  setCache,
+    setCache,
 
-  type CacheOptions,
+    type CacheOptions,
 } from '@/services/enhancedCache';
 
 import { collection, doc, getDoc, getDocs, onSnapshot, query } from 'firebase/firestore';
 
 import { CylinderSize, SupplierData, SupplierWithDistance } from './types/supplier';
+
+import { isOnline } from '@/utils/networkUtils';
+
 
 // Type aliases for Firebase types that may not be properly exported
 type FirestoreQueryDocumentSnapshot = any;
@@ -138,7 +141,7 @@ const generateNearbyCacheKey = (
 
  * Fetch open suppliers within radius with caching
 
- * Implements stale-while-revalidate pattern
+ * Implements offline-first pattern: returns cached data when offline, fetches fresh when online
 
  */
 
@@ -148,7 +151,9 @@ export const getSuppliersWithinRadius = async (
 
   userLon: number,
 
-  radiusKm: number = MAX_NEARBY_RADIUS_KM
+  radiusKm: number = MAX_NEARBY_RADIUS_KM,
+
+  forceRefresh: boolean = false
 
 ): Promise<SupplierWithDistance[]> => {
 
@@ -156,81 +161,91 @@ export const getSuppliersWithinRadius = async (
 
   const cacheKey = generateNearbyCacheKey(userLat, userLon, effectiveRadiusKm);
 
-
-
-  return getOrFetch(
-
-    cacheKey,
-
-    async () => {
-
-      // Fetch all suppliers and filter client-side to handle missing isOpen field
-
-      const suppliersQuery = query(collection(db, 'suppliers'));
-
-      const querySnapshot = await getDocs(suppliersQuery);
-
-      
-
-      
-
-      const suppliers = querySnapshot.docs
-
-        .map((doc: FirestoreQueryDocumentSnapshot) => {
-
-          const data = doc.data() as SupplierData;
-
-          const distance = calculateDistance(
-
-            userLat,
-
-            userLon,
-
-            data.location.latitude,
-
-            data.location.longitude
-
-          );
-
-          return { data, distance };
-
-        })
-
-        .filter(({ data, distance }: { data: SupplierData; distance: number }) => {
-
-          // Filter by distance
-
-          if (distance > effectiveRadiusKm) return false;
-
-          // Filter by isOpen status (default to true if field is missing)
-
-          return data.isOpen !== false; // Include if isOpen is true or undefined
-
-        })
-
-        .map(({ data, distance }: { data: SupplierData; distance: number }) => ({ ...data, distance }))
-
-        .sort((a: SupplierWithDistance, b: SupplierWithDistance) => a.distance - b.distance);
+  const online = await isOnline();
 
 
 
-      return suppliers;
+  // If offline and not forcing refresh, return cached data only
 
-    },
+  if (!online && !forceRefresh) {
 
-    {
+    const cached = await getCache<SupplierWithDistance[]>(cacheKey, { maxAge: Infinity });
 
-      ttl: CACHE_TTL.SUPPLIERS.NEARBY,
+    if (cached) {
 
-      backgroundRefresh: true,
-
-      persistent: true,
-
-      maxAge: Infinity,
+      return cached;
 
     }
 
-  ).then(result => result.data);
+    // No cached data available, return empty array
+
+    return [];
+
+  }
+
+
+
+  // Online or forcing refresh - fetch fresh data
+
+  const suppliersQuery = query(collection(db, 'suppliers'));
+
+  const querySnapshot = await getDocs(suppliersQuery);
+
+  
+
+  const suppliers = querySnapshot.docs
+
+    .map((doc: FirestoreQueryDocumentSnapshot) => {
+
+      const data = doc.data() as SupplierData;
+
+      const distance = calculateDistance(
+
+        userLat,
+
+        userLon,
+
+        data.location.latitude,
+
+        data.location.longitude
+
+      );
+
+      return { data, distance };
+
+    })
+
+    .filter(({ data, distance }: { data: SupplierData; distance: number }) => {
+
+      // Filter by distance
+
+      if (distance > effectiveRadiusKm) return false;
+
+      // Filter by isOpen status (default to true if field is missing)
+
+      return data.isOpen !== false; // Include if isOpen is true or undefined
+
+    })
+
+    .map(({ data, distance }: { data: SupplierData; distance: number }) => ({ ...data, distance }))
+
+    .sort((a: SupplierWithDistance, b: SupplierWithDistance) => a.distance - b.distance);
+
+
+
+  // Save to cache permanently
+
+  await setCache(cacheKey, suppliers, {
+
+    ttl: CACHE_TTL.SUPPLIERS.NEARBY,
+
+    persistent: true,
+
+  });
+
+
+
+  return suppliers;
 
 };
 
@@ -257,6 +272,46 @@ export const getCachedSuppliers = async (
   const cacheKey = generateNearbyCacheKey(userLat, userLon, effectiveRadiusKm);
 
   return getCache<SupplierWithDistance[]>(cacheKey, { maxAge: Infinity });
+
+};
+
+
+
+/**
+
+ * Sync suppliers when coming back online
+
+ * This function should be called when the device comes back online
+
+ */
+
+export const syncSuppliersWhenOnline = async (
+
+  userLat: number,
+
+  userLon: number,
+
+  radiusKm: number = MAX_NEARBY_RADIUS_KM
+
+): Promise<void> => {
+
+  try {
+
+    const online = await isOnline();
+
+    if (online) {
+
+      // Force refresh when coming back online
+
+      await getSuppliersWithinRadius(userLat, userLon, radiusKm, true);
+
+    }
+
+  } catch (error) {
+
+    console.error('Failed to sync suppliers when online:', error);
+
+  }
 
 };
 
@@ -688,11 +743,15 @@ export const filterByCylinderSize = (
 
   
 
-  return suppliers.filter((supplier) =>
+  return suppliers
 
-    supplier.prices.some((price) => price.size === size && price.inStock)
+    .filter((supplier) =>
 
-  );
+      supplier.prices.some((price) => price.size === size && price.inStock)
+
+    )
+
+    .sort((a, b) => a.distance - b.distance);
 
 };
 

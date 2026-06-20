@@ -1,6 +1,6 @@
 /**
  * useSuppliers Hook - Supplier data with intelligent caching
- * Features: real-time updates, geo-caching, background refresh, filtering
+ * Features: 30-minute polling, geo-caching, background refresh, filtering, offline-first
  */
 
 import { getCacheMeta } from '@/services/cache';
@@ -9,9 +9,8 @@ import {
     getCachedSuppliers,
     getSuppliersWithinRadius,
     prefetchSuppliers,
-    subscribeToSuppliers,
     type CylinderSize,
-    type SupplierWithDistance,
+    type SupplierWithDistance
 } from '@/services/cachedSupplierService';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -30,19 +29,22 @@ interface UseSuppliersReturn {
   refresh: () => Promise<void>;
   isStale: boolean;
   lastUpdated: Date | null;
+  isOnline: boolean;
 }
 
 export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
   const { latitude, longitude, radiusKm = 1, enabled = true } = options;
-  
+
   const [suppliers, setSuppliers] = useState<SupplierWithDistance[]>([]);
   const [isLoading, setIsLoading] = useState(enabled);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  
+  const [isOnline, setIsOnline] = useState(true);
+
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const networkUnsubscribeRef = useRef<(() => void) | null>(null);
   const isMounted = useRef(true);
   const lastFetchRef = useRef<{ lat: number; lng: number; radius: number } | null>(null);
   const hasDataRef = useRef(false);
@@ -68,8 +70,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
   const fetchSuppliers = useCallback(async (background = false) => {
     if (!latitude || !longitude || !isMounted.current) return;
 
-    // Always fetch on non-background calls to ensure suppliers appear
-    // Skip only on background refresh if location hasn't changed significantly
+    // Skip background refresh if location hasn't changed significantly
     if (background && !hasLocationChanged(latitude, longitude, radiusKm)) {
       return;
     }
@@ -82,33 +83,45 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
 
     try {
       // Try to get cached data first for immediate display
-      if (!background) {
-        const cached = await getCachedSuppliers(latitude, longitude, radiusKm);
-        if (cached && isMounted.current) {
-          setSuppliers(cached);
+      const cacheKey = `suppliers:nearby:${latitude.toFixed(4)}:${longitude.toFixed(4)}:${radiusKm}`;
+      const cached = await getCachedSuppliers(latitude, longitude, radiusKm);
+      
+      if (cached && isMounted.current) {
+        setSuppliers(cached);
+        hasDataRef.current = cached.length > 0;
+        
+        // Check if cache is expired (30 minutes)
+        const meta = await getCacheMeta(cacheKey);
+        if (meta) {
+          const age = Date.now() - meta.timestamp;
+          const isCacheExpired = age > 30 * 60 * 1000; // 30 minutes
+          setIsStale(isCacheExpired);
+          setLastUpdated(new Date(meta.timestamp));
           
-          // Check if stale
-          const cacheKey = `suppliers:nearby:${latitude.toFixed(4)}:${longitude.toFixed(4)}:${radiusKm}`;
-          const meta = await getCacheMeta(cacheKey);
-          if (meta) {
-            const age = Date.now() - meta.timestamp;
-            const isCacheStale = age > 60 * 1000; // 1 minute - optimized for <2s response
-            setIsStale(isCacheStale);
-            setLastUpdated(new Date(meta.timestamp));
+          // Only fetch fresh data if cache is expired or not background
+          if (!background || isCacheExpired) {
+            const fresh = await getSuppliersWithinRadius(latitude, longitude, radiusKm);
+            if (isMounted.current) {
+              setSuppliers(fresh);
+              hasDataRef.current = fresh.length > 0;
+              setIsStale(false);
+              setLastUpdated(new Date());
+              lastFetchRef.current = { lat: latitude, lng: longitude, radius: radiusKm };
+            }
+          } else {
             setIsLoading(false);
           }
         }
-      }
-
-      // Fetch fresh data
-      const fresh = await getSuppliersWithinRadius(latitude, longitude, radiusKm);
-      
-      if (isMounted.current) {
-        setSuppliers(fresh);
-        hasDataRef.current = fresh.length > 0;
-        setIsStale(false);
-        setLastUpdated(new Date());
-        lastFetchRef.current = { lat: latitude, lng: longitude, radius: radiusKm };
+      } else {
+        // No cache available, fetch from Firestore
+        const fresh = await getSuppliersWithinRadius(latitude, longitude, radiusKm);
+        if (isMounted.current) {
+          setSuppliers(fresh);
+          hasDataRef.current = fresh.length > 0;
+          setIsStale(false);
+          setLastUpdated(new Date());
+          lastFetchRef.current = { lat: latitude, lng: longitude, radius: radiusKm };
+        }
       }
     } catch (err) {
       if (isMounted.current) {
@@ -125,7 +138,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     }
   }, [latitude, longitude, radiusKm, hasLocationChanged]);
 
-  // Initial fetch and subscription
+  // Initial fetch and polling (every 30 minutes)
   useEffect(() => {
     isMounted.current = true;
 
@@ -137,45 +150,21 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     // Initial fetch
     fetchSuppliers(false);
 
-    // Set up real-time subscription
-    unsubscribeRef.current = subscribeToSuppliers(
-      latitude,
-      longitude,
-      radiusKm,
-      (newSuppliers, fromCache) => {
-        if (isMounted.current && !fromCache) {
-          setSuppliers(newSuppliers);
-          hasDataRef.current = newSuppliers.length > 0;
-          setIsStale(false);
-          setLastUpdated(new Date());
-        }
-      },
-      (err) => {
-        if (isMounted.current) {
-          // Auto-recover from offline errors by re-enabling network
-          if (err.message?.includes('offline') || err.message?.includes('client is offline')) {
-            import('@/config/firebase').then(({ enableFirestoreNetwork }) => {
-              enableFirestoreNetwork().then(() => {
-                // Retry fetch after recovery
-                setTimeout(() => fetchSuppliers(true), 1000);
-              }).catch(() => {});
-            }).catch(() => {});
-          }
-          // Only show error if no data available
-          if (!hasDataRef.current) {
-            setError(err);
-          }
-        }
+    // Set up polling interval (30 minutes)
+    const pollingInterval = setInterval(() => {
+      if (isMounted.current) {
+        fetchSuppliers(true); // Background refresh
       }
-    );
+    }, 30 * 60 * 1000); // 30 minutes
 
     return () => {
       isMounted.current = false;
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
+      clearInterval(pollingInterval);
     };
-  }, [enabled, latitude, longitude, radiusKm, fetchSuppliers, suppliers.length]);
+  }, [enabled, latitude, longitude, radiusKm, fetchSuppliers]);
+
+  // Network state monitoring removed to prevent frequent updates
+  // Rely on 30-minute polling interval instead
 
   // Manual refresh
   const refresh = useCallback(async () => {
@@ -191,6 +180,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     refresh,
     isStale,
     lastUpdated,
+    isOnline,
   };
 }
 

@@ -42,6 +42,8 @@ const functions = __importStar(require("firebase-functions"));
 const node_fetch_1 = __importDefault(require("node-fetch"));
 admin.initializeApp();
 const expoPushSendUrl = 'https://exp.host/--/api/v2/push/send';
+// Enhanced logging for debugging
+functions.logger.info('Cloud Function initialized: onNewOrderNotificationWritten');
 exports.onNewOrderNotificationWritten = functions.firestore
     .document('notifications/{notificationId}')
     .onCreate(async (snap) => {
@@ -55,14 +57,21 @@ exports.onNewOrderNotificationWritten = functions.firestore
         pushDataType: data?.data?.type,
     });
     // Only handle our new order notifications
-    if (data.type !== 'order')
+    if (data.type !== 'order') {
+        functions.logger.info('Skipping non-order notification', { type: data.type });
         return;
+    }
     const pushData = (data.data || {});
-    if (pushData.type !== 'new_order')
+    if (pushData.type !== 'new_order') {
+        functions.logger.info('Skipping non-new-order notification', { pushDataType: pushData.type });
         return;
+    }
     const supplierId = pushData.supplierId || data.userId;
-    if (!supplierId)
+    if (!supplierId) {
+        functions.logger.error('No supplierId found in notification', { pushData, data });
         return;
+    }
+    functions.logger.info('Processing new order notification', { supplierId });
     // Fetch supplier push token
     const userDoc = await admin
         .firestore()
@@ -72,7 +81,11 @@ exports.onNewOrderNotificationWritten = functions.firestore
     const userData = userDoc.data();
     const pushToken = userData?.pushToken;
     if (!pushToken || typeof pushToken !== 'string') {
-        // No token saved - can't send push.
+        functions.logger.warn('No push token found for supplier', {
+            supplierId,
+            hasUserData: !!userData,
+            pushToken: pushToken ? 'exists' : 'missing',
+        });
         return;
     }
     const orderDetails = pushData.orderDetails || {};
@@ -93,21 +106,39 @@ exports.onNewOrderNotificationWritten = functions.firestore
             conversationId: pushData.conversationId || null,
         },
     };
-    const res = await (0, node_fetch_1.default)(expoPushSendUrl, {
-        method: 'POST',
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(message),
+    functions.logger.info('Sending Expo push notification', {
+        supplierId,
+        pushToken: pushToken.substring(0, 10) + '...',
     });
-    if (!res.ok) {
-        functions.logger.error('Expo push send failed', {
+    try {
+        const res = await (0, node_fetch_1.default)(expoPushSendUrl, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(message),
+        });
+        if (!res.ok) {
+            const errorBody = await res.text();
+            functions.logger.error('Expo push send failed', {
+                supplierId,
+                status: res.status,
+                body: errorBody,
+            });
+            return;
+        }
+        const responseData = await res.json();
+        functions.logger.info('Expo push sent successfully', {
             supplierId,
             status: res.status,
-            body: await res.text(),
+            responseData,
         });
-        return;
     }
-    functions.logger.info('Expo push sent', { supplierId, status: res.status });
+    catch (error) {
+        functions.logger.error('Error sending Expo push notification', {
+            supplierId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 });

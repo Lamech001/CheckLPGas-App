@@ -1,20 +1,21 @@
 import { AppStatusBar } from "@/components/AppStatusBar";
 import { signInWithEmail } from "@/services/authService";
+import { setupNotifications } from "@/services/notificationService";
 import type { PersistentSession } from "@/services/persistenceSessionService";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -27,6 +28,13 @@ export default function SupplierLogin() {
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const pathname = usePathname();
+
+  // Setup push notifications for suppliers
+  useEffect(() => {
+    setupNotifications().catch((error: Error) => {
+      console.error('[Supplier Login] Failed to setup notifications:', error);
+    });
+  }, []);
 
   const safeReplace = async (target: string) => {
     if (isNavigating || pathname === target) return;

@@ -11,10 +11,10 @@ import { SupplierMap } from "@/components/consumer/SupplierMap";
 import { auth } from "@/config/firebase";
 
 import {
-  AppColors,
-  AppConstants,
-  AppShadows,
-  AppSizes,
+    AppColors,
+    AppConstants,
+    AppShadows,
+    AppSizes,
 } from "@/constants/appTheme";
 
 import { useSuppliers } from "@/hooks/useSuppliers";
@@ -22,35 +22,34 @@ import { useSuppliers } from "@/hooks/useSuppliers";
 import { getUserRole } from "@/services/authService";
 
 import {
-  cacheUserLocation,
-  getCachedUserLocation,
+    cacheUserLocation,
+    getCachedUserLocation,
 } from "@/services/cacheService";
 
 import { getCurrentLocation } from "@/services/locationService";
 
 import {
-  notificationListeners,
-  requestNotificationPermissions,
-  sendLocalNotification,
-  setupNotifications,
+    notificationListeners,
+    requestNotificationPermissions,
+    sendLocalNotification,
+    setupNotifications,
 } from "@/services/notificationService";
 
 import { FontAwesome5 } from "@expo/vector-icons";
 
 import { useRouter } from "expo-router";
 
-import NetInfo from "@react-native-community/netinfo";
 
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const DEFAULT_RADIUS_KM = AppConstants.defaultRadiusKm;
@@ -73,11 +72,9 @@ export default function ConsumerHomeScreen() {
 
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  const [isOnline, setIsOnline] = useState(true);
-
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Use new cached suppliers hook with built-in real-time updates
+  // Use new cached suppliers hook with built-in real-time updates and offline-first
 
   const {
     suppliers,
@@ -93,6 +90,8 @@ export default function ConsumerHomeScreen() {
     lastUpdated,
 
     isStale,
+
+    isOnline: hookIsOnline,
   } = useSuppliers({
     latitude: userLocation?.latitude ?? null,
 
@@ -297,38 +296,20 @@ export default function ConsumerHomeScreen() {
   }, []);
 
   // Monitor network status for WhatsApp-like offline behavior
-
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      const isConnected =
-        state.isConnected === true && state.isInternetReachable === true;
-
-      setIsOnline(isConnected);
-
-      // When coming back online, refresh data
-
-      if (isConnected && userLocation) {
-        setIsSyncing(true);
-
-        refreshSuppliers().finally(() => {
-          setIsSyncing(false);
-        });
-      }
-    });
-
-    return () => unsubscribe();
-  }, [userLocation, refreshSuppliers]);
+  // Note: Network monitoring is now handled by useSuppliers hook with auto-sync
+  // Removed auto-refresh on network change to prevent frequent updates
+  // Rely on 30-minute polling interval instead
 
   // Real-time updates are now handled internally by useSuppliers hook
 
   // No need for manual subscription management
 
-  // Auto-refresh every 10 minutes to ensure fresh data while keeping app responsive
+  // Auto-refresh every 30 minutes to reduce frequent updates
 
   useEffect(() => {
     if (!userLocation) return;
 
-    const REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes - optimized for <2s response
+    const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
     const intervalId = setInterval(() => {
       refreshSuppliers();
@@ -414,7 +395,7 @@ export default function ConsumerHomeScreen() {
         <View style={styles.minimalHeaderCenter}>
           <Text style={styles.brandText}>GasAround</Text>
 
-          {!isOnline && (
+          {!hookIsOnline && (
             <View style={styles.offlineIndicator}>
               <FontAwesome5
                 name="wifi-slash"
@@ -426,7 +407,7 @@ export default function ConsumerHomeScreen() {
             </View>
           )}
 
-          {isSyncing && isOnline && (
+          {isSyncing && hookIsOnline && (
             <View style={styles.syncIndicator}>
               <FontAwesome5 name="sync" size={10} color={AppColors.primary} />
 

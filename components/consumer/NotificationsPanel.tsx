@@ -1,16 +1,16 @@
 import { auth, db } from '@/config/firebase';
 import { SupplierData } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface NotificationsPanelProps {
@@ -42,7 +42,7 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ visible,
     onUnreadCountChange?.(unreadCount);
   }, [unreadCount, onUnreadCountChange]);
 
-  // Real-time notifications from supplier changes
+  // Notifications with 30-minute polling instead of real-time
   useEffect(() => {
     if (!visible) return;
 
@@ -52,57 +52,6 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ visible,
       setLoading(false);
       return;
     }
-
-    // Subscribe to suppliers for real-time price/stock changes
-    const suppliersRef = collection(db, 'suppliers');
-    const q = query(suppliersRef, where('isOpen', '==', true));
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const newNotifications: Notification[] = [];
-        
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'modified') {
-            const data = change.doc.data() as SupplierData;
-            const supplierId = change.doc.id;
-            
-            // Check for price changes
-            if (data.prices) {
-              data.prices.forEach((price) => {
-                if (price.inStock) {
-                  newNotifications.push({
-                    id: `${supplierId}-${price.size}-${Date.now()}`,
-                    type: 'price_drop',
-                    title: 'Price Update',
-                    message: `${data.enterpriseName} - ${price.size}kg now Ksh ${price.price}`,
-                    timestamp: new Date(),
-                    read: false,
-                    supplierId,
-                    supplierName: data.enterpriseName,
-                  });
-                }
-              });
-            }
-          }
-        });
-
-        if (newNotifications.length > 0) {
-          setNotifications((prev) => {
-            // Keep only last 20 notifications
-            const combined = [...newNotifications, ...prev].slice(0, 20);
-            return combined;
-          });
-          setUnreadCount((prev) => prev + newNotifications.length);
-        }
-        
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Notifications subscription error:', error);
-        setLoading(false);
-      }
-    );
 
     // Load initial mock notifications if empty
     if (notifications.length === 0) {
@@ -120,7 +69,62 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ visible,
       setLoading(false);
     }
 
-    return () => unsubscribe();
+    // Poll for supplier changes every 30 minutes
+    const fetchNotifications = async () => {
+      try {
+        const suppliersRef = collection(db, 'suppliers');
+        const q = query(suppliersRef, where('isOpen', '==', true));
+        const snapshot = await getDocs(q);
+        
+        const newNotifications: Notification[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data() as SupplierData;
+          const supplierId = doc.id;
+          
+          // Check for price changes
+          if (data.prices) {
+            data.prices.forEach((price) => {
+              if (price.inStock) {
+                newNotifications.push({
+                  id: `${supplierId}-${price.size}-${Date.now()}`,
+                  type: 'price_drop',
+                  title: 'Price Update',
+                  message: `${data.enterpriseName} - ${price.size}kg now Ksh ${price.price}`,
+                  timestamp: new Date(),
+                  read: false,
+                  supplierId,
+                  supplierName: data.enterpriseName,
+                });
+              }
+            });
+          }
+        });
+
+        if (newNotifications.length > 0) {
+          setNotifications((prev) => {
+            // Keep only last 20 notifications
+            const combined = [...newNotifications, ...prev].slice(0, 20);
+            return combined;
+          });
+          setUnreadCount((prev) => prev + newNotifications.length);
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+        setLoading(false);
+      }
+    };
+
+    // Initial fetch
+    fetchNotifications();
+
+    // Set up polling interval (30 minutes)
+    const pollingInterval = setInterval(() => {
+      fetchNotifications();
+    }, 30 * 60 * 1000); // 30 minutes
+
+    return () => clearInterval(pollingInterval);
   }, [visible]);
 
   const markAllAsRead = () => {
