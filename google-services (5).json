@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "722596547435",
+    "project_id": "checklpgas",
+    "storage_bucket": "checklpgas.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:722596547435:android:0ed65631b5624104461a2e",
+        "android_client_info": {
+          "package_name": "com.lamech_kosgei.GasAround"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "722596547435-nj72bpsrudggove982tjqgt64a6s91om.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lamech_kosgei.GasAround",
+            "certificate_hash": "e55b76b6044f48f833bb3dd5eb964a40e38de21a"
+          }
+        },
+        {
+          "client_id": "722596547435-p3k90i0u4mj3j9fjppkuc3iv819098pg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBx7sgnkd94tyDqmivuSm_gbjJm9qymG7A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "722596547435-p3k90i0u4mj3j9fjppkuc3iv819098pg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

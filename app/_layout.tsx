@@ -13,6 +13,7 @@ import { ConnectionIndicator } from "@/components/ConnectionIndicator";
 import { DeepLinkHandler } from "@/components/DeepLinkHandler";
 import { CacheProvider } from "@/contexts/CacheContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
+import { setupNotifications } from "@/services/notificationService";
 import { getPersistentSession } from "@/services/persistenceSessionService";
 import { sessionManager } from "@/services/sessionManager";
 import { useRouter } from "expo-router";
@@ -28,6 +29,13 @@ function AppContent() {
   useEffect(() => {
     sessionManager.initialize();
     return () => sessionManager.cleanup();
+  }, []);
+
+  // Initialize push notifications globally
+  useEffect(() => {
+    setupNotifications().catch((error: Error) => {
+      console.error('[RootLayout] Failed to setup notifications:', error);
+    });
   }, []);
 
   // WhatsApp-like persistence:
@@ -75,11 +83,6 @@ function AppContent() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="role-select" />
-          <Stack.Screen name="consumer/login" />
-          <Stack.Screen name="consumer/signup" />
-          <Stack.Screen name="supplier/login" />
-          <Stack.Screen name="supplier/signup" />
-          <Stack.Screen name="supplier/dashboard" />
           <Stack.Screen name="verify-email" />
           <Stack.Screen name="terms" />
           <Stack.Screen name="privacy" />

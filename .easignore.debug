@@ -1,0 +1,5 @@
+This file is intentionally ignored by EAS build archive.
+
+If you need to reduce EAS archive size, the most reliable method is to run EAS build with --debug and locate which directories are included.
+EAS ignore patterns are path-based and must match the archive root paths.
+

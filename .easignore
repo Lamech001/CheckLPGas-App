@@ -1,33 +1,58 @@
 # Dependencies
+
 node_modules/
+functions/node_modules/
+.expo/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Android/iOS native build directories (Crucial!)
+
 android/
 ios/
 
 # Expo caches
+
 .expo/
 
 # Local build artifacts & caches
+
 *.apk
 *.aab
 *.apks
 bundletool.jar
 .metro/
 
+# Expo build outputs
+
+dist/
+web-build/
+
+# Common Expo/EAS temp files
+
+expo-build/
+.expo-env/
+.expo-env.*
+
+# Debug logs
+
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.metro-health-check*
+*.log
+
 # Environment files (if you manage secrets via EAS Dashboard)
+
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env
 
-# Expo build outputs
-dist/
-web-build/
-expo-env.d.ts
-
 # Native signing files
+
 .kotlin/
 *.orig.*
 *.jks
@@ -37,26 +62,25 @@ expo-env.d.ts
 *.mobileprovision
 *.pem
 
-# Debug logs
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-.metro-health-check*
-
 # macOS
+
 .DS_Store
 
 # TypeScript
+
 *.tsbuildinfo
 
 # Example app
+
 app-example
 
 # Git history (not needed for builds)
+
 .git/
 .gitignore
 
 # IDE and editor files
+
 .vscode/
 .idea/
 *.swp
@@ -64,23 +88,28 @@ app-example
 *~
 
 # Documentation and notes
-README.md
+
 DEPLOYMENT_CHECKLIST.md
 TODO*.md
 *.patch.txt
 
 # GitHub workflows
+
 .github/
+plugins/
 
 # Firebase functions (if built separately)
+
 functions/
 
 # Cache directories
+
 .cache/
 .turbo/
 
 # Test files
-**/__tests__/
+
+**/tests/
 **/*.test.ts
 **/*.test.tsx
 **/*.spec.ts
@@ -88,6 +117,12 @@ functions/
 **/coverage/
 
 # Misc
+
 .eslintrc*
 .prettierrc*
 .editorconfig
+
+# Your additional patterns (conservative)
+
+TODO*.patch.*
+*.json.patch.txt
