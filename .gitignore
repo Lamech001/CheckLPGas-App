@@ -44,3 +44,39 @@ app-example
 
 # env files
 .env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+*.iml
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+build/
+.gradle/
+
+# Logs
+*.log
+.expo-lint.log
+.expo-lint-report.json
+.expo-eslint-report.json
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Credentials
+credentials/
+google-services*.json
+google-services (5).json
+
+# Bundle tool
+bundletool.jar
+
+# Generated files
+app.aab
+app.apks
