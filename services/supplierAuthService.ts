@@ -1,23 +1,24 @@
-import { auth, db } from "@/config/firebase";
+import { auth, db, enableFirestoreNetwork } from "@/config/firebase";
 
 import {
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
-  updateProfile,
-  User,
+    createUserWithEmailAndPassword,
+    sendEmailVerification,
+    updateProfile,
+    User,
 } from "firebase/auth";
 
 import {
-  doc,
-  getDoc,
-  onSnapshot,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
+    doc,
+    getDoc,
+    onSnapshot,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
 } from "firebase/firestore";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { generateGeohash } from "@/utils/geohashUtils";
 import { SupplierData } from "./types/supplier";
 
 const supplierDataCache = new Map<
@@ -168,6 +169,38 @@ export const registerSupplier = async (
 
     const supplierDocRef = doc(db, "suppliers", user.uid);
 
+    // Validate location coordinates before geohash generation
+    const { latitude, longitude } = data.location;
+    if (
+      typeof latitude !== "number" ||
+      typeof longitude !== "number" ||
+      isNaN(latitude) ||
+      isNaN(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      throw new Error(
+        `Invalid location coordinates: lat=${latitude}, lon=${longitude}`,
+      );
+    }
+
+    // Generate geohash with validation
+    let geohash: string;
+    try {
+      geohash = generateGeohash(latitude, longitude);
+      if (!geohash || geohash.length === 0) {
+        throw new Error("Geohash generation returned empty string");
+      }
+      console.log(
+        `[SupplierAuth] Generated geohash: ${geohash} for lat=${latitude}, lon=${longitude}`,
+      );
+    } catch (error) {
+      console.error("[SupplierAuth] Geohash generation failed:", error);
+      throw new Error(`Failed to generate geohash: ${error}`);
+    }
+
     const supplierData = {
       uid: user.uid,
 
@@ -181,6 +214,8 @@ export const registerSupplier = async (
 
       location: data.location,
 
+      geohash,
+
       prices: data.prices,
 
       isOpen: true,
@@ -193,6 +228,18 @@ export const registerSupplier = async (
 
       updatedAt: serverTimestamp(),
     };
+
+    // Ensure Firestore network is online before attempting to write
+    // This prevents "missing stream token" errors when the Firestore
+    // backend connection hasn't fully initialized yet.
+    try {
+      await enableFirestoreNetwork();
+    } catch {
+      // Non-critical - the setDoc retry loop below will handle transient failures
+      console.warn(
+        "[SupplierAuth] enableFirestoreNetwork warning (non-critical)",
+      );
+    }
 
     // Try to save with retry
 
@@ -389,14 +436,15 @@ export const getSupplierData = async (
   supplierId: string,
 
   retryCount = 0,
+  forceRefresh = false,
 ): Promise<{ success: boolean; data?: SupplierData; error?: string }> => {
   // Clean up expired cache entries
 
   cleanupExpiredCache();
 
-  // Check cache first
+  // Check cache first (unless forceRefresh is true)
 
-  if (supplierDataCache.has(supplierId)) {
+  if (!forceRefresh && supplierDataCache.has(supplierId)) {
     const cachedExpiry = cacheExpiry.get(supplierId);
 
     if (cachedExpiry && Date.now() < cachedExpiry) {
@@ -522,12 +570,15 @@ export const getSupplierData = async (
 
   // Offline-first: serve cached dashboard data immediately if available.
   // This makes supplier dashboard usable across app restarts.
-  const cachedPromise = getCachedSupplierDashboardData(supplierId);
+  // When forceRefresh is true, skip cached data and always fetch from Firestore.
+  const cachedPromise = !forceRefresh
+    ? getCachedSupplierDashboardData(supplierId)
+    : Promise.resolve(null);
 
   const dataPromise = (async () => {
-    // If we have cached data, return it fast on first paint.
+    // If we have cached data (and not force refresh), return it fast on first paint.
     const cached = await cachedPromise;
-    if (cached) {
+    if (cached && !forceRefresh) {
       // Fire-and-forget attempt to refresh in background
       // (we still return cached immediately for offline experience)
       fetchData(retryCount)
@@ -544,7 +595,7 @@ export const getSupplierData = async (
       };
     }
 
-    // No cache available: do normal fetch.
+    // No cache available (or force refresh): do normal fetch.
     const fresh = await fetchData(retryCount);
     if (fresh?.success && fresh.data) {
       await setCachedSupplierDashboardData(supplierId, fresh.data);

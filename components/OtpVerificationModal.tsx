@@ -1,5 +1,5 @@
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { FontAwesome5 } from "@expo/vector-icons";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -10,7 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
 interface OtpVerificationModalProps {
   visible: boolean;
@@ -33,25 +33,32 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   expiresAt,
   resendEnabled = true,
 }) => {
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState("");
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [attempts, setAttempts] = useState(0);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (visible) {
-      setOtp('');
+    if (!visible) return;
+
+    // Reset when the modal becomes visible.
+    // Avoid calling setState synchronously inside an effect.
+    Promise.resolve().then(() => {
+      setOtp("");
       setAttempts(0);
-      // Focus input after modal opens
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    });
+    // Focus input after modal opens
+    setTimeout(() => inputRef.current?.focus(), 100);
   }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
 
     const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      const remaining = Math.max(
+        0,
+        Math.floor((expiresAt - Date.now()) / 1000),
+      );
       setTimeLeft(remaining);
 
       if (remaining === 0) {
@@ -65,40 +72,43 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-const handleVerify = async () => {
+  const handleVerify = async () => {
     if (otp.length !== 6) {
-      Alert.alert('Invalid OTP', 'Please enter a valid 6-digit OTP');
+      Alert.alert("Invalid OTP", "Please enter a valid 6-digit OTP");
       return;
     }
 
     const isValid = await onVerify(otp);
 
     if (isValid) {
-      Alert.alert('Success', 'Phone number verified successfully!');
+      Alert.alert("Success", "Phone number verified successfully!");
       // Call the onVerified callback if provided
       if (onVerified) {
         onVerified();
       }
       onClose();
     } else {
-      setAttempts(prev => prev + 1);
+      setAttempts((prev) => prev + 1);
       if (attempts >= 2) {
-        Alert.alert('Too Many Attempts', 'Please request a new OTP');
+        Alert.alert("Too Many Attempts", "Please request a new OTP");
       } else {
-        Alert.alert('Invalid OTP', 'The code you entered is incorrect. Please try again.');
+        Alert.alert(
+          "Invalid OTP",
+          "The code you entered is incorrect. Please try again.",
+        );
       }
-      setOtp('');
+      setOtp("");
     }
   };
 
-const handleResend = async () => {
+  const handleResend = async () => {
     await onResend();
-    setOtp('');
+    setOtp("");
     setAttempts(0);
-    Alert.alert('OTP Resent', `A new OTP has been sent to ${phoneNumber}`);
+    Alert.alert("OTP Resent", `A new OTP has been sent to ${phoneNumber}`);
   };
 
   return (
@@ -109,7 +119,7 @@ const handleResend = async () => {
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
         <View style={styles.content}>
@@ -126,7 +136,7 @@ const handleResend = async () => {
             <FontAwesome5 name="mobile-alt" size={50} color="#4CAF50" />
           </View>
 
-{/* Instructions */}
+          {/* Instructions */}
           <Text style={styles.instructions}>
             We&apos;ve sent a 6-digit verification code to
           </Text>
@@ -152,17 +162,22 @@ const handleResend = async () => {
 
           {/* Verify Button */}
           <TouchableOpacity
-            style={[styles.verifyButton, otp.length !== 6 && styles.verifyButtonDisabled]}
+            style={[
+              styles.verifyButton,
+              otp.length !== 6 && styles.verifyButtonDisabled,
+            ]}
             onPress={handleVerify}
             disabled={otp.length !== 6 || timeLeft === 0}
           >
             <Text style={styles.verifyButtonText}>Verify</Text>
           </TouchableOpacity>
 
-{/* Resend Section */}
+          {/* Resend Section */}
           {resendEnabled && (
             <View style={styles.resendContainer}>
-              <Text style={styles.resendText}>Didn&apos;t receive the code? </Text>
+              <Text style={styles.resendText}>
+                Didn&apos;t receive the code?{" "}
+              </Text>
               <TouchableOpacity onPress={handleResend}>
                 <Text style={styles.resendLink}>Resend</Text>
               </TouchableOpacity>
@@ -171,9 +186,7 @@ const handleResend = async () => {
 
           {/* Attempts Warning */}
           {attempts > 0 && (
-            <Text style={styles.attemptsText}>
-              Attempt {attempts} of 3
-            </Text>
+            <Text style={styles.attemptsText}>Attempt {attempts} of 3</Text>
           )}
         </View>
       </KeyboardAvoidingView>
@@ -184,11 +197,11 @@ const handleResend = async () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   content: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 24,
@@ -196,90 +209,90 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
   title: {
     fontSize: 22,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   closeButton: {
     padding: 8,
   },
   iconContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   instructions: {
     fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+    color: "#666",
+    textAlign: "center",
     marginBottom: 8,
   },
   phoneNumber: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
     marginBottom: 24,
   },
   otpInput: {
     fontSize: 32,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
     letterSpacing: 12,
     paddingVertical: 12,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: "#4CAF50",
     borderRadius: 12,
     marginBottom: 16,
   },
   timer: {
     fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+    color: "#666",
+    textAlign: "center",
     marginBottom: 20,
   },
   timerWarning: {
-    color: '#FF5722',
+    color: "#FF5722",
   },
   verifyButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
     paddingVertical: 14,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   verifyButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: "#ccc",
   },
   verifyButtonText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
   resendContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   resendText: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   resendLink: {
     fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
+    color: "#4CAF50",
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   attemptsText: {
     fontSize: 12,
-    color: '#FF5722',
-    textAlign: 'center',
+    color: "#FF5722",
+    textAlign: "center",
     marginTop: 12,
   },
 });

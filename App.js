@@ -1,6 +1,4 @@
-import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
 
 // Complete example for setting status bar icons to black (dark-content)
 // Works on both Android and iOS.

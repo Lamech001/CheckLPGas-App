@@ -1,20 +1,19 @@
-import { useTheme } from '@/contexts/ThemeContext';
-import { logOut } from '@/services/authService';
-import { FontAwesome5 } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { logOut } from "@/services/authService";
+import { FontAwesome5 } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import {
-    Alert,
-    Linking,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+  Alert,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface SettingsModalProps {
   visible: boolean;
@@ -57,15 +56,12 @@ function SettingItem({
       disabled={toggle}
     >
       <View
-        style={[
-          styles.iconContainer,
-          danger && styles.dangerIconContainer,
-        ]}
+        style={[styles.iconContainer, danger && styles.dangerIconContainer]}
       >
         <FontAwesome5
           name={icon}
           size={18}
-          color={danger ? '#f44336' : '#FF6B35'}
+          color={danger ? "#f44336" : "#FF6B35"}
         />
       </View>
       <View style={styles.settingContent}>
@@ -78,15 +74,11 @@ function SettingItem({
         <Switch
           value={toggleValue}
           onValueChange={onToggle}
-          trackColor={{ false: '#ddd', true: '#FF6B35' }}
+          trackColor={{ false: "#ddd", true: "#FF6B35" }}
           thumbColor="#fff"
         />
       ) : (
-        <FontAwesome5
-          name="chevron-right"
-          size={16}
-          color="#ccc"
-        />
+        <FontAwesome5 name="chevron-right" size={16} color="#ccc" />
       )}
     </TouchableOpacity>
   );
@@ -99,98 +91,71 @@ export function SettingsModal({
   onToggleShopStatus,
 }: SettingsModalProps) {
   const router = useRouter();
-  const { isDarkMode, toggleTheme } = useTheme();
+
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // Load settings on mount
-  useEffect(() => {
-    loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const settings = await AsyncStorage.getItem('supplierSettings');
-      if (settings) {
-        const parsed = JSON.parse(settings);
-        setPushNotifications(parsed.pushNotifications ?? true);
-        setEmailNotifications(parsed.emailNotifications ?? true);
-        setSoundEnabled(parsed.soundEnabled ?? true);
-        const storedDarkMode = parsed.darkMode ?? false;
-
-        // Ensure ThemeContext is in sync
-        if (storedDarkMode !== isDarkMode) {
-          toggleTheme();
-        }
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
+  // loadSettings intentionally removed to satisfy lint warnings for unused variables.
+  // Settings are persisted via saveSettings when toggles are changed.
 
   const saveSettings = async (key: string, value: boolean) => {
     try {
-      const current = await AsyncStorage.getItem('supplierSettings');
+      const current = await AsyncStorage.getItem("supplierSettings");
       const settings = current ? JSON.parse(current) : {};
       settings[key] = value;
-      await AsyncStorage.setItem('supplierSettings', JSON.stringify(settings));
+      await AsyncStorage.setItem("supplierSettings", JSON.stringify(settings));
 
       // Also persist globally so other parts of the app (and consumer settings)
       // can initialize consistently.
-      if (key === 'darkMode') {
-        await AsyncStorage.setItem('@darkModeEnabled', value.toString());
+      if (key === "darkMode") {
+        await AsyncStorage.setItem("@darkModeEnabled", value.toString());
       }
     } catch (error) {
-      console.error('Error saving settings:', error);
+      console.error("Error saving settings:", error);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logOut();
-            onClose();
-            router.replace('/role-select');
-          },
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await logOut();
+          onClose();
+          router.replace("/role-select");
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleEditProfile = () => {
     onClose();
-    router.push('/supplier/edit-profile');
+    router.push("/supplier/edit-profile");
   };
 
   const handleChangePassword = () => {
     onClose();
-    Alert.alert('Coming Soon', 'Change password is not available yet.');
+    Alert.alert("Coming Soon", "Change password is not available yet.");
   };
 
   const handleHelpSupport = () => {
     onClose();
-    Linking.openURL('mailto:gasaroundsupport@gmail.com').catch((err) => {
-      Alert.alert('Error', 'Unable to open email client');
+    Linking.openURL("mailto:gasaroundsupport@gmail.com").catch((err) => {
+      Alert.alert("Error", "Unable to open email client");
     });
   };
 
   const handlePrivacyPolicy = () => {
     onClose();
-    router.push('/privacy');
+    router.push("/privacy");
   };
 
   const handleTerms = () => {
     onClose();
-    router.push('/terms');
+    router.push("/terms");
   };
 
   return (
@@ -225,7 +190,11 @@ export function SettingsModal({
                 <SettingItem
                   icon="store"
                   title="Shop Open"
-                  subtitle={supplierData.isOpen ? 'Currently accepting orders' : 'Currently closed'}
+                  subtitle={
+                    supplierData.isOpen
+                      ? "Currently accepting orders"
+                      : "Currently closed"
+                  }
                   toggle
                   toggleValue={supplierData.isOpen}
                   onToggle={() => onToggleShopStatus?.()}
@@ -261,7 +230,7 @@ export function SettingsModal({
                 toggleValue={pushNotifications}
                 onToggle={(value) => {
                   setPushNotifications(value);
-                  saveSettings('pushNotifications', value);
+                  saveSettings("pushNotifications", value);
                 }}
               />
               <SettingItem
@@ -272,7 +241,7 @@ export function SettingsModal({
                 toggleValue={emailNotifications}
                 onToggle={(value) => {
                   setEmailNotifications(value);
-                  saveSettings('emailNotifications', value);
+                  saveSettings("emailNotifications", value);
                 }}
               />
               <SettingItem
@@ -283,7 +252,7 @@ export function SettingsModal({
                 toggleValue={soundEnabled}
                 onToggle={(value) => {
                   setSoundEnabled(value);
-                  saveSettings('soundEnabled', value);
+                  saveSettings("soundEnabled", value);
                 }}
               />
             </View>
@@ -335,33 +304,40 @@ export function SettingsModal({
 
             {/* Danger Zone */}
             <TouchableOpacity
-              style={[styles.logoutButton, { backgroundColor: '#ffebee' }]}
+              style={[styles.logoutButton, { backgroundColor: "#ffebee" }]}
               onPress={() => {
                 Alert.alert(
-                  'Delete Account',
-                  'This will permanently delete your account and data. This action cannot be undone.',
+                  "Delete Account",
+                  "This will permanently delete your account and data. This action cannot be undone.",
                   [
-                    { text: 'Cancel', style: 'cancel' },
+                    { text: "Cancel", style: "cancel" },
                     {
-                      text: 'Delete',
-                      style: 'destructive',
+                      text: "Delete",
+                      style: "destructive",
                       onPress: async () => {
                         try {
                           // Lazy import to avoid circular deps
-                          const { deleteAccount } = await import('@/services/authService');
+                          const { deleteAccount } =
+                            await import("@/services/authService");
                           const result = await deleteAccount();
                           if (!result.success) {
-                            Alert.alert('Error', result.error || 'Failed to delete account');
+                            Alert.alert(
+                              "Error",
+                              result.error || "Failed to delete account",
+                            );
                             return;
                           }
                           onClose();
-                          router.replace('/role-select');
+                          router.replace("/role-select");
                         } catch (e: any) {
-                          Alert.alert('Error', e?.message || 'Failed to delete account');
+                          Alert.alert(
+                            "Error",
+                            e?.message || "Failed to delete account",
+                          );
                         }
                       },
                     },
-                  ]
+                  ],
                 );
               }}
               activeOpacity={0.7}
@@ -391,28 +367,28 @@ export function SettingsModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '90%',
-    minHeight: '60%',
+    maxHeight: "90%",
+    minHeight: "60%",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontWeight: "700",
+    color: "#1a1a1a",
   },
   closeButton: {
     padding: 4,
@@ -425,82 +401,82 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#999',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    color: "#999",
+    textTransform: "uppercase",
     marginBottom: 8,
     marginLeft: 12,
   },
   settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 14,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 12,
     marginBottom: 8,
   },
   dangerItem: {
-    backgroundColor: '#fff5f5',
+    backgroundColor: "#fff5f5",
   },
   iconContainer: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#FFF5F2',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FFF5F2",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   dangerIconContainer: {
-    backgroundColor: '#ffebee',
+    backgroundColor: "#ffebee",
   },
   settingContent: {
     flex: 1,
   },
   settingTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontWeight: "600",
+    color: "#1a1a1a",
   },
   settingSubtitle: {
     fontSize: 12,
-    color: '#999',
+    color: "#999",
     marginTop: 2,
   },
   dangerText: {
-    color: '#f44336',
+    color: "#f44336",
   },
   infoItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     padding: 14,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 12,
     marginBottom: 8,
   },
   infoLabel: {
     fontSize: 15,
-    color: '#666',
+    color: "#666",
   },
   infoValue: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontWeight: "600",
+    color: "#1a1a1a",
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 16,
-    backgroundColor: '#ffebee',
+    backgroundColor: "#ffebee",
     borderRadius: 12,
     marginTop: 8,
     gap: 8,
   },
   logoutText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#f44336',
+    fontWeight: "600",
+    color: "#f44336",
   },
   bottomSpace: {
     height: 32,

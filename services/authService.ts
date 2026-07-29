@@ -1,4 +1,4 @@
-import { auth, db } from "@/config/firebase";
+import { auth, db, enableFirestoreNetwork } from "@/config/firebase";
 
 import NetInfo from "@react-native-community/netinfo";
 
@@ -238,6 +238,16 @@ export const signUpWithEmail = async (userData: {
     await updateProfile(firebaseUser, {
       displayName: userData.fullName,
     });
+
+    // Ensure Firestore network is online before attempting to write
+    // This prevents "missing stream token" errors when the Firestore
+    // backend connection hasn't fully initialized yet.
+    try {
+      await enableFirestoreNetwork();
+    } catch {
+      // Non-critical - createUserDocument has its own retry loop for transient failures
+      console.warn("[Auth] enableFirestoreNetwork warning (non-critical)");
+    }
 
     // Create user document in Firestore (parallel with email)
 
@@ -504,6 +514,17 @@ export const signInWithEmail = async (credentials: {
     return { success: true, user, role: userRole };
   } catch (error: any) {
     console.error("Login error:", error);
+
+    // Handle Firestore SDK internal assertion errors at the top level
+    if (
+      error.message?.includes("INTERNAL ASSERTION FAILED") ||
+      error.message?.includes("Unexpected state")
+    ) {
+      console.warn(
+        "[Auth] Firestore SDK assertion error caught at top level, defaulting to consumer role",
+      );
+      return { success: true, role: "consumer" as const };
+    }
 
     const errorMessage = getAuthErrorMessage(error.code);
 

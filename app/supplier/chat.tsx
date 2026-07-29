@@ -3,18 +3,18 @@ import { ConsumerLiveLocationMapModal } from '@/components/supplier/ConsumerLive
 import { OrderMessageCard } from '@/components/supplier/OrderMessageCard';
 import { auth } from '@/config/firebase';
 import {
-  deleteMessage,
-  editMessage,
-  markMessagesAsRead,
-  sendMessage,
-  subscribeToConversation,
-  subscribeToMessages,
+    deleteMessage,
+    editMessage,
+    markMessagesAsRead,
+    sendMessage,
+    subscribeToConversation,
+    subscribeToMessages,
 } from '@/services/chatService';
 import { Conversation, formatChatDate, Message } from '@/services/types/chat';
 import { isNewOrderMessage } from '@/utils/orderMessage';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -63,7 +63,7 @@ export default function SupplierChatScreen() {
 
   useEffect(() => {
     if (!conversationId) {
-      setLoading(false);
+      Promise.resolve().then(() => setLoading(false));
       return;
     }
 
@@ -105,7 +105,6 @@ export default function SupplierChatScreen() {
   }, [conversationId]);
 
   const liveLocation = liveConversation?.consumerLiveLocation;
-  const liveLocationUpdatedAt = liveConversation?.consumerLiveLocationUpdatedAt;
 
   const handleSend = async () => {
     if (!inputText.trim() || !currentUser || !conversationId) return;
@@ -242,28 +241,9 @@ export default function SupplierChatScreen() {
     if (!consumerPhone) return;
 
     try {
-      // Request phone call permission (expo-permissions)
-      const { status } = await (async () => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const Permissions = require('expo-permissions');
-          return Permissions.askAsync(Permissions.CALL_PHONE);
-        } catch {
-          // If expo-permissions is unavailable, treat as denied and fall back to opening the dialer
-          return { status: 'denied' };
-        }
-      })();
-
-      if (status === 'granted') {
-        Linking.openURL(`tel:${consumerPhone}`);
-      } else {
-        Alert.alert(
-          'Permission Required',
-          'Phone call permission is required to call customers. Please enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error) {
+      // expo-permissions is deprecated, directly open the dialer
+      Linking.openURL(`tel:${consumerPhone}`);
+    } catch {
       // Fallback for devices that don't support permission checking
       Linking.openURL(`tel:${consumerPhone}`);
     }

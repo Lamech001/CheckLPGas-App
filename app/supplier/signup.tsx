@@ -1,22 +1,21 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { getCurrentLocation } from '@/services/locationService';
-import { setupNotifications } from '@/services/notificationService';
 import { registerSupplier, SupplierRegistrationData } from '@/services/supplierAuthService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -41,12 +40,6 @@ export default function SupplierSignupScreen() {
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
 
-  // Setup push notifications for suppliers
-  useEffect(() => {
-    setupNotifications().catch((error: Error) => {
-      console.error('[Supplier Signup] Failed to setup notifications:', error);
-    });
-  }, []);
 
   // Form data
   const [enterpriseName, setEnterpriseName] = useState('');
@@ -130,7 +123,7 @@ export default function SupplierSignupScreen() {
       } else {
         Alert.alert('Error', 'Could not get your location. Please check location permissions.');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to get location. Please try again.');
     } finally {
       setLocationLoading(false);

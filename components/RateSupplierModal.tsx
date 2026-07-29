@@ -3,16 +3,16 @@
  * Features: 5-star rating, optional text review, submit/edit/delete ratings
  */
 
-import { RatingInput, StarRating } from '@/components/StarRating';
-import { auth } from '@/config/firebase';
-import { 
-  deleteRating, 
-  hasConsumerRated, 
+import { RatingInput } from "@/components/StarRating";
+import { auth } from "@/config/firebase";
+import {
+  deleteRating,
+  hasConsumerRated,
   submitRating,
-  type RatingData 
-} from '@/services/ratingsService';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+  type RatingData,
+} from "@/services/ratingsService";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,7 +25,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
 interface RateSupplierModalProps {
   visible: boolean;
@@ -43,7 +43,7 @@ export function RateSupplierModal({
   onRatingSubmitted,
 }: RateSupplierModalProps) {
   const [rating, setRating] = useState(0);
-  const [review, setReview] = useState('');
+  const [review, setReview] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [existingRating, setExistingRating] = useState<RatingData | null>(null);
@@ -53,8 +53,11 @@ export function RateSupplierModal({
 
   // Check if user has already rated this supplier
   useEffect(() => {
-    if (!visible || !user || !supplierId) {
-      setChecking(false);
+    if (!visible) return;
+
+    if (!user || !supplierId) {
+      // Avoid calling setState synchronously inside an effect.
+      Promise.resolve().then(() => setChecking(false));
       return;
     }
 
@@ -65,30 +68,31 @@ export function RateSupplierModal({
         if (result.success && result.rated && result.rating) {
           setExistingRating(result.rating);
           setRating(result.rating.rating);
-          setReview(result.rating.review || '');
+          setReview(result.rating.review || "");
         } else {
           setExistingRating(null);
           setRating(0);
-          setReview('');
+          setReview("");
         }
-      } catch (error) {
-        console.error('Error checking existing rating:', error);
+      } catch {
+        console.error("Error checking existing rating");
       } finally {
         setChecking(false);
       }
     };
 
     checkExisting();
+     
   }, [visible, supplierId, user]);
 
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert('Error', 'You must be logged in to rate');
+      Alert.alert("Error", "You must be logged in to rate");
       return;
     }
 
     if (rating === 0) {
-      Alert.alert('Error', 'Please select a rating');
+      Alert.alert("Error", "Please select a rating");
       return;
     }
 
@@ -97,25 +101,32 @@ export function RateSupplierModal({
       const result = await submitRating(
         supplierId,
         user.uid,
-        user.displayName || 'Anonymous',
+        user.displayName || "Anonymous",
         rating,
-        review.trim() || undefined
+        review.trim() || undefined,
       );
 
       if (result.success) {
         Alert.alert(
-          'Success',
-          existingRating ? 'Your rating has been updated!' : 'Thank you for your rating!',
-          [{ text: 'OK', onPress: () => {
-            onRatingSubmitted?.();
-            onClose();
-          }}]
+          "Success",
+          existingRating
+            ? "Your rating has been updated!"
+            : "Thank you for your rating!",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                onRatingSubmitted?.();
+                onClose();
+              },
+            },
+          ],
         );
       } else {
-        Alert.alert('Error', result.error || 'Failed to submit rating');
+        Alert.alert("Error", result.error || "Failed to submit rating");
       }
-    } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } catch {
+      Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -125,32 +136,32 @@ export function RateSupplierModal({
     if (!user) return;
 
     Alert.alert(
-      'Delete Rating',
-      'Are you sure you want to delete your rating?',
+      "Delete Rating",
+      "Are you sure you want to delete your rating?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             setLoading(true);
             try {
               const result = await deleteRating(supplierId, user.uid);
               if (result.success) {
-                Alert.alert('Deleted', 'Your rating has been removed');
+                Alert.alert("Deleted", "Your rating has been removed");
                 onRatingSubmitted?.();
                 onClose();
               } else {
-                Alert.alert('Error', result.error || 'Failed to delete rating');
+                Alert.alert("Error", result.error || "Failed to delete rating");
               }
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete rating');
+            } catch {
+              Alert.alert("Error", "Failed to delete rating");
             } finally {
               setLoading(false);
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -166,7 +177,7 @@ export function RateSupplierModal({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.modalContainer}
       >
         <View style={styles.modalOverlay}>
@@ -185,17 +196,23 @@ export function RateSupplierModal({
                 <Text style={styles.loadingText}>Loading...</Text>
               </View>
             ) : (
-              <ScrollView 
+              <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
               >
                 {/* Existing Rating Notice */}
                 {existingRating && (
                   <View style={styles.existingNotice}>
-                    <FontAwesome5 name="info-circle" size={16} color="#1976D2" />
+                    <FontAwesome5
+                      name="info-circle"
+                      size={16}
+                      color="#1976D2"
+                    />
                     <Text style={styles.existingText}>
-                      You rated this supplier {existingRating.rating} stars on{' '}
-                      {existingRating.createdAt?.toDate?.().toLocaleDateString() || 'a previous visit'}
+                      You rated this supplier {existingRating.rating} stars on{" "}
+                      {existingRating.createdAt
+                        ?.toDate?.()
+                        .toLocaleDateString() || "a previous visit"}
                     </Text>
                   </View>
                 )}
@@ -203,7 +220,9 @@ export function RateSupplierModal({
                 {/* Rating Input */}
                 <View style={styles.ratingSection}>
                   <Text style={styles.sectionLabel}>
-                    {existingRating ? 'Update your rating:' : 'How was your experience?'}
+                    {existingRating
+                      ? "Update your rating:"
+                      : "How was your experience?"}
                   </Text>
                   <RatingInput
                     initialRating={rating}
@@ -243,7 +262,12 @@ export function RateSupplierModal({
                         <ActivityIndicator size="small" color="#f44336" />
                       ) : (
                         <>
-                          <FontAwesome5 name="trash" size={16} color="#f44336" style={styles.buttonIcon} />
+                          <FontAwesome5
+                            name="trash"
+                            size={16}
+                            color="#f44336"
+                            style={styles.buttonIcon}
+                          />
                           <Text style={styles.deleteButtonText}>Delete</Text>
                         </>
                       )}
@@ -254,7 +278,8 @@ export function RateSupplierModal({
                     style={[
                       styles.button,
                       styles.submitButton,
-                      (rating === 0 || submitting) && styles.submitButtonDisabled,
+                      (rating === 0 || submitting) &&
+                        styles.submitButtonDisabled,
                     ]}
                     onPress={handleSubmit}
                     disabled={rating === 0 || submitting}
@@ -263,14 +288,14 @@ export function RateSupplierModal({
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
                       <>
-                        <FontAwesome5 
-                          name={existingRating ? 'edit' : 'check'} 
-                          size={16} 
-                          color="#fff" 
-                          style={styles.buttonIcon} 
+                        <FontAwesome5
+                          name={existingRating ? "edit" : "check"}
+                          size={16}
+                          color="#fff"
+                          style={styles.buttonIcon}
                         />
                         <Text style={styles.submitButtonText}>
-                          {existingRating ? 'Update Rating' : 'Submit Rating'}
+                          {existingRating ? "Update Rating" : "Submit Rating"}
                         </Text>
                       </>
                     )}
@@ -297,14 +322,14 @@ export function RateSupplierModal({
 interface SupplierRatingBadgeProps {
   rating: number;
   totalRatings: number;
-  size?: 'small' | 'medium' | 'large';
+  size?: "small" | "medium" | "large";
   onPress?: () => void;
 }
 
 export function SupplierRatingBadge({
   rating,
   totalRatings,
-  size = 'medium',
+  size = "medium",
   onPress,
 }: SupplierRatingBadgeProps) {
   const sizeConfig = {
@@ -318,7 +343,7 @@ export function SupplierRatingBadge({
   const Wrapper = onPress ? TouchableOpacity : View;
 
   return (
-    <Wrapper 
+    <Wrapper
       style={styles.badgeContainer}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
@@ -342,28 +367,28 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    maxHeight: "80%",
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   title: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontWeight: "600",
+    color: "#1a1a1a",
     flex: 1,
   },
   closeButton: {
@@ -371,20 +396,20 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     padding: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 12,
-    color: '#666',
+    color: "#666",
     fontSize: 14,
   },
   scrollContent: {
     padding: 20,
   },
   existingNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E3F2FD",
     padding: 12,
     borderRadius: 8,
     marginBottom: 20,
@@ -393,16 +418,16 @@ const styles = StyleSheet.create({
   existingText: {
     flex: 1,
     fontSize: 13,
-    color: '#1976D2',
+    color: "#1976D2",
     lineHeight: 18,
   },
   ratingSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   sectionLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     marginBottom: 12,
   },
   reviewSection: {
@@ -410,77 +435,77 @@ const styles = StyleSheet.create({
   },
   reviewInput: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 12,
     padding: 12,
     fontSize: 14,
-    color: '#1a1a1a',
+    color: "#1a1a1a",
     minHeight: 100,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   charCount: {
-    textAlign: 'right',
+    textAlign: "right",
     fontSize: 12,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 4,
   },
   buttonContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 12,
   },
   button: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
   },
   deleteButton: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: "#FFEBEE",
     borderWidth: 1,
-    borderColor: '#FFCDD2',
+    borderColor: "#FFCDD2",
   },
   deleteButtonText: {
-    color: '#f44336',
+    color: "#f44336",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   submitButton: {
-    backgroundColor: '#1976D2',
+    backgroundColor: "#1976D2",
     flex: 2,
   },
   submitButtonDisabled: {
     opacity: 0.5,
   },
   submitButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   buttonIcon: {
     marginRight: 8,
   },
   cancelButton: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 12,
   },
   cancelButtonText: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 14,
   },
   badgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   badgeRating: {
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontWeight: "600",
+    color: "#1a1a1a",
     marginLeft: 2,
   },
   badgeCount: {
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
 });

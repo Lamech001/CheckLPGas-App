@@ -5,7 +5,7 @@ import { formatChatDate, Message } from '@/services/types/chat';
 import { SupplierWithDistance } from '@/services/types/supplier';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -79,7 +79,8 @@ export default function ChatScreen() {
   };
 
   useEffect(() => {
-    initConversation();
+    Promise.resolve().then(() => initConversation());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, supplierData]);
 
   // Subscribe to messages
@@ -213,7 +214,7 @@ export default function ChatScreen() {
 
     try {
       Linking.openURL(`tel:${supplierData.phoneNumber}`);
-    } catch (error) {
+    } catch {
       Alert.alert(
         'Error',
         'Unable to open phone dialer.',

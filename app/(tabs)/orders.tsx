@@ -1,21 +1,21 @@
 import { AppStatusBar } from '@/components/AppStatusBar';
 import { auth } from '@/config/firebase';
 import {
-  deleteOrderFromHistory,
-  getAllOrdersFromHistory,
-  type LocalOrderHistoryItem,
+    deleteOrderFromHistory,
+    getAllOrdersFromHistory,
+    type LocalOrderHistoryItem,
 } from '@/services/orderHistoryLocalService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -42,7 +42,7 @@ export default function OrdersHistoryScreen() {
   }, [currentUser]);
 
   useEffect(() => {
-    void loadOrders();
+    Promise.resolve().then(() => void loadOrders());
   }, [loadOrders]);
 
   const onRefresh = () => {

@@ -30,7 +30,11 @@ service cloud.firestore {
 
     match /suppliers/{supplierId} {
       allow read: if isSignedIn();
-      allow create, update: if isOwner(supplierId);
+      allow create: if isOwner(supplierId);
+      allow update: if isOwner(supplierId) || 
+                     // Allow any signed-in user to update rating stats
+                     (isSignedIn() && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'totalRatings', 'ratingDistribution', 'updatedAt']));
       allow delete: if isOwner(supplierId);
     }
 
@@ -70,6 +74,31 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId is string;
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /ratings/{ratingId} {
+      // Extract consumerId from ratingId format: supplierId_consumerId
+      function getConsumerIdFromRatingId() {
+        return ratingId.split('_')[1];
+      }
+      
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && 
+                     request.resource.data.consumerId == request.auth.uid &&
+                     request.resource.data.consumerId == getConsumerIdFromRatingId();
+      allow update: if isSignedIn() && 
+                     resource.data.consumerId == request.auth.uid &&
+                     resource.data.consumerId == getConsumerIdFromRatingId();
+      allow delete: if isSignedIn() && 
+                     resource.data.consumerId == request.auth.uid &&
+                     resource.data.consumerId == getConsumerIdFromRatingId();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.consumerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.consumerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.consumerId == request.auth.uid;
     }
   }
 }

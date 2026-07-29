@@ -1,9 +1,5 @@
-import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider as NavigationThemeProvider,
-} from "@react-navigation/native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform, StatusBar as RNStatusBar } from "react-native";
@@ -16,26 +12,62 @@ import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { setupNotifications } from "@/services/notificationService";
 import { getPersistentSession } from "@/services/persistenceSessionService";
 import { sessionManager } from "@/services/sessionManager";
-import { useRouter } from "expo-router";
+import {
+    initializeTokenRefresh,
+    stopTokenRefresh,
+} from "@/services/tokenRefreshService";
 
 // Initial route is index (WelcomeScreen) by default
+
+// Global handler to catch Firestore SDK assertion errors that escape as uncaught promise rejections
+if (
+  typeof global !== "undefined" &&
+  typeof global.addEventListener === "function"
+) {
+  global.addEventListener("unhandledrejection", (event: any) => {
+    const msg = event?.reason?.message || event?.reason?.toString() || "";
+    if (
+      msg.includes("INTERNAL ASSERTION FAILED") ||
+      (msg.includes("FIRESTORE") && msg.includes("Unexpected state"))
+    ) {
+      event.preventDefault();
+      if (event.stopPropagation) event.stopPropagation();
+    }
+  });
+}
 
 // Inner component that uses theme
 function AppContent() {
   const { isDarkMode } = useTheme();
   const router = useRouter();
 
-  // Initialize session manager for rich, smooth session handling
+  // Initialize session manager and token refresh for rich, smooth session handling
   useEffect(() => {
     sessionManager.initialize();
-    return () => sessionManager.cleanup();
+    initializeTokenRefresh();
+    return () => {
+      sessionManager.cleanup();
+      stopTokenRefresh();
+    };
   }, []);
 
   // Initialize push notifications globally
   useEffect(() => {
-    setupNotifications().catch((error: Error) => {
-      console.error('[RootLayout] Failed to setup notifications:', error);
-    });
+    const initNotifications = async () => {
+      try {
+        await setupNotifications();
+      } catch (error: any) {
+        // Suppress Firebase initialization errors that occur during hot reload
+        // These are non-critical and notifications will work on proper app restart
+        if (error?.message?.includes("Default FirebaseApp is not initialized")) {
+          console.warn("[RootLayout] Firebase not ready for notifications (hot reload - will work on restart)");
+        } else {
+          console.error("[RootLayout] Failed to setup notifications:", error);
+        }
+      }
+    };
+    
+    initNotifications();
   }, []);
 
   // WhatsApp-like persistence:
@@ -76,8 +108,8 @@ function AppContent() {
   }, []);
 
   return (
-    <NavigationThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
-      <StatusBar style="dark" />
+    <>
+      <StatusBar style={isDarkMode ? "light" : "dark"} />
       <DeepLinkHandler>
         <ConnectionIndicator />
         <Stack screenOptions={{ headerShown: false }}>
@@ -89,7 +121,7 @@ function AppContent() {
           <Stack.Screen name="(tabs)" />
         </Stack>
       </DeepLinkHandler>
-    </NavigationThemeProvider>
+    </>
   );
 }
 

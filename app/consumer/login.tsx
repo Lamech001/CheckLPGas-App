@@ -22,7 +22,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ConsumerLogin() {
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [role, setRole ]= useState<'supplier' | 'consumer'>('consumer') ;
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -171,11 +170,7 @@ export default function ConsumerLogin() {
   };
 
   const handleSignUp = () => {
-    if (role === 'supplier') {
-      router.push('/supplier/signup');
-    } else {
-      router.push('/consumer/signup');
-    }
+    router.push('/consumer/signup');
   };
 
   return (

@@ -1,26 +1,13 @@
-# TODO - Supplier persistence + offline caching
+# TODO (auto-maintained by BlackboxAI)
 
-## Step 1 - Add AsyncStorage persistence for supplier dashboard
+## NotificationsPanel ESLint cleanup
 
-- [x] Update `services/supplierAuthService.ts` to cache `SupplierData` per supplierId in AsyncStorage with TTL.
-- [x] Add helpers to read/write cached supplier dashboard data.
-- [x] Update `getSupplierData` to return cached data immediately when offline/unavailable.
+- [ ] Refactor `components/consumer/NotificationsPanel.tsx` effect to remove the “setState synchronously within an effect” error.
+- [ ] Fix `react-hooks/exhaustive-deps` warning in `NotificationsPanel.tsx`.
+- [ ] Remove unused `width` destructuring in `NotificationsPanel.tsx`.
+- [ ] Run eslint for `NotificationsPanel.tsx` with `--max-warnings=0`.
 
-## Step 2 - Prime cache on supplier login
+## SideMenu ESLint cleanup
 
-- [x] Update `app/supplier/login.tsx` to prefetch supplier dashboard data after login (so dashboard is instant on next launch).
-
-## Step 3 - Logout clears supplier cache
-
-- [x] Update `services/authService.ts` logout flow to remove cached supplier dashboard data + supplier session marker.
-
-## Step 4 - Dashboard UI offline behavior
-
-- [x] Update `app/supplier/dashboard.tsx` loading flow to show cached data immediately (no long spinner).
-
-## Step 5 - Verification
-
-- [ ] Manual test matrix:
-  - [ ] Login once as supplier -> next app open goes directly to dashboard.
-  - [ ] Offline open -> dashboard renders cached supplier data.
-  - [ ] Logout -> next app open shows role selection/login.
+- [ ] Remove unused `error` var in `components/consumer/SideMenu.tsx`.
+- [ ] Run eslint for `SideMenu.tsx` with `--max-warnings=0`.

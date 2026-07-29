@@ -20,21 +20,9 @@ export default function WelcomeScreen() {
 
       try {
         const { getPersistentSession } = await import('@/services/persistenceSessionService');
-        const { getCachedUserProfile } = await import('@/services/cacheService');
-        const { auth } = await import('@/config/firebase');
         const { getUserRole, onAuthChange } = await import('@/services/authService');
         
         const session = await getPersistentSession();
-
-        // Load cached user profile if available
-        if (session?.uid) {
-          try {
-            const cachedProfile = await getCachedUserProfile();
-            // Profile is now available in cache for use throughout the app
-          } catch {
-            // Ignore cache loading errors
-          }
-        }
 
         // Check both local session marker AND Firebase Auth state
         if (session?.emailVerified && session.uid && session.role) {
@@ -69,17 +57,17 @@ export default function WelcomeScreen() {
           });
           
           // Set a timeout in case auth state doesn't change (Firebase Auth persistence delay)
-          setTimeout(() => {
+          setTimeout(async () => {
             if (!authCheckComplete) {
               authCheckComplete = true;
               unsubscribe();
               
               // Fallback: Check auth.currentUser directly if onAuthChange didn't fire
-              const { auth } = require('@/config/firebase');
+              const { auth } = await import('@/config/firebase');
               const firebaseUser = auth.currentUser;
               
               if (firebaseUser && firebaseUser.uid === session.uid) {
-                getUserRole(session.uid).then((roleResult: any) => {
+                getUserRole(session.uid).then(async (roleResult: any) => {
                   if (roleResult.role === session.role) {
                     if (session.role === 'consumer') {
                       router.replace('/(tabs)');

@@ -1,16 +1,26 @@
-import { CylinderSize, CYLINDER_SIZES } from '@/services/types/supplier';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { CYLINDER_SIZES, CylinderSize } from "@/services/types/supplier";
+import { memo } from "react";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface FilterBarProps {
-  selectedSize: CylinderSize | 'all';
-  onSelectSize: (size: CylinderSize | 'all') => void;
+  selectedSize: CylinderSize | "all";
+  onSelectSize: (size: CylinderSize | "all") => void;
 }
 
-export const FilterBar: React.FC<FilterBarProps> = ({ selectedSize, onSelectSize }) => {
+export const FilterBar: React.FC<FilterBarProps> = memo(function FilterBar({
+  selectedSize,
+  onSelectSize,
+}) {
   return (
     <View style={styles.container}>
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -36,14 +46,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({ selectedSize, onSelectSize
       </ScrollView>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: "#e0e0e0",
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -53,18 +63,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     marginRight: 8,
   },
   buttonActive: {
-    backgroundColor: '#1976D2',
+    backgroundColor: "#1976D2",
   },
   buttonText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
+    fontWeight: "500",
+    color: "#666",
   },
   buttonTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
 });

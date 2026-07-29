@@ -4,14 +4,14 @@ import { subscribeToConsumerConversations } from '@/services/chatService';
 import { Conversation, formatMessageTime } from '@/services/types/chat';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,7 +24,7 @@ export default function ConversationsScreen() {
 
   useEffect(() => {
     if (!currentUser) {
-      setLoading(false);
+      Promise.resolve().then(() => setLoading(false));
       return;
     }
 

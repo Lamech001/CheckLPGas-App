@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -17,8 +17,8 @@ export function SplashScreen({
   message = "Searching for nearby vendors...",
   onAnimationComplete,
 }: SplashScreenProps) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [scaleAnim] = useState(() => new Animated.Value(0.8));
 
   useEffect(() => {
     // Fade in and scale animation
@@ -40,17 +40,14 @@ export function SplashScreen({
         setTimeout(onAnimationComplete, 500);
       }
     });
-  }, []);
+  }, [fadeAnim, scaleAnim, onAnimationComplete]);
 
   return (
     <View style={styles.container}>
       <Animated.View
         style={[
           styles.content,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
+          { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
         ]}
       >
         {/* Logo Container with Orange Circle */}

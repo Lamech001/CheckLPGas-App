@@ -118,7 +118,7 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
     const supplierRef = doc(db, 'suppliers', supplierId);
     unsubscribeRef.current = onSnapshot(
       supplierRef,
-      (snapshot) => {
+      (snapshot: any) => {
         if (!isMounted.current) return;
 
         if (snapshot.exists()) {
@@ -136,7 +136,7 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
           }).catch(() => {});
         }
       },
-      (err) => {
+      (err: any) => {
         if (isMounted.current && !supplier) {
           setError(err);
         }

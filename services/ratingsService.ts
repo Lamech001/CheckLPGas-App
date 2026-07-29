@@ -88,8 +88,9 @@ export const submitRating = async (
     // Check if rating already exists
     const existingDoc = await getDoc(ratingRef);
     if (existingDoc.exists()) {
-      // Update existing rating
+      // Update existing rating - include consumerId to satisfy Firestore rules
       await updateDoc(ratingRef, {
+        consumerId,
         rating,
         review: review || '',
         updatedAt: serverTimestamp(),

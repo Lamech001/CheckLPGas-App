@@ -4,7 +4,7 @@ import { AppColors, AppSizes } from '@/constants/appTheme';
 
 import * as Linking from 'expo-linking';
 
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -18,13 +18,12 @@ export function DeepLinkHandler({ children }: { children: React.ReactNode }) {
 
   const router = useRouter();
 
-  const segments = useSegments();
 
   const [isReady, setIsReady] = useState(false);
 
-  const [verifying, setVerifying] = useState(false);
+  const [verifying] = useState(false);
 
-  const [message, setMessage] = useState('');
+  const [message] = useState('');
 
 
 
@@ -36,7 +35,7 @@ export function DeepLinkHandler({ children }: { children: React.ReactNode }) {
 
       // Parse the URL
 
-      const { path, queryParams } = Linking.parse(url);
+      const { queryParams } = Linking.parse(url);
 
       
 

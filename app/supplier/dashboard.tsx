@@ -31,6 +31,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Modal,
   ScrollView,
   StyleSheet,
@@ -53,6 +54,19 @@ interface PriceData {
   inStock: boolean;
 }
 
+const getIconForSize = (s: number) => {
+  switch (s) {
+    case 6:
+      return "fire";
+    case 13:
+      return "burn";
+    case 19:
+      return "fire-alt";
+    default:
+      return "fire";
+  }
+};
+
 export default function SupplierDashboardScreen() {
   const router = useRouter();
 
@@ -70,7 +84,7 @@ export default function SupplierDashboardScreen() {
 
   const [isOpen, setIsOpen] = useState(false);
 
-  const [phoneNumber, setPhoneNumber] = useState("");
+  // phoneNumber state removed (unused)
 
   // Notifications & Settings
 
@@ -85,6 +99,8 @@ export default function SupplierDashboardScreen() {
   const [orderCount, setOrderCount] = useState(0);
 
   const [showRatingsModal, setShowRatingsModal] = useState(false);
+
+  // NOTE: phoneNumber is set only via supplierData; remove stray setter stub.
 
   // Listen for auth state changes + enforce verified-only access
 
@@ -137,11 +153,7 @@ export default function SupplierDashboardScreen() {
   }, [router]);
 
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-
-      return;
-    }
+    if (!user) return;
 
     let isActive = true;
 
@@ -163,8 +175,6 @@ export default function SupplierDashboardScreen() {
           setSupplierData(data);
 
           setIsOpen(data.isOpen ?? true);
-
-          setPhoneNumber(data.phoneNumber || "");
 
           // Update prices
 
@@ -204,6 +214,12 @@ export default function SupplierDashboardScreen() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      Promise.resolve().then(() => setLoading(false));
+    }
+  }, [user]);
+
   // Subscribe to unread notification count
 
   useEffect(() => {
@@ -231,13 +247,26 @@ export default function SupplierDashboardScreen() {
     return () => unsubscribe();
   }, [user]);
 
-  const loadSupplierData = async () => {
+  // Prevent back button from going to login/signup screens
+  useEffect(() => {
+    const backPressHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        // Prevent back navigation - supplier must explicitly log out
+        return true;
+      }
+    );
+
+    return () => backPressHandler.remove();
+  }, []);
+
+  const loadSupplierData = async (forceRefresh = false) => {
     if (!user) return;
 
     try {
       setLoading(true);
 
-      const result = await getSupplierData(user.uid);
+      const result = await getSupplierData(user.uid, 0, forceRefresh);
 
       if (result.success && result.data) {
         const data = result.data as SupplierData;
@@ -247,8 +276,6 @@ export default function SupplierDashboardScreen() {
         setEditedPrices(data.prices || []);
 
         setIsOpen(data.isOpen || false);
-
-        setPhoneNumber(data.phoneNumber || "");
       } else {
         Alert.alert("Error", "Failed to load your supplier data.");
       }
@@ -272,11 +299,11 @@ export default function SupplierDashboardScreen() {
       if (result.success) {
         Alert.alert("Success", "Your prices have been updated!");
 
-        loadSupplierData(); // Refresh data
+        loadSupplierData(true); // Force refresh to get fresh data, bypass cache
       } else {
         Alert.alert("Error", result.error || "Failed to update prices.");
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
       setSaving(false);
@@ -306,7 +333,7 @@ export default function SupplierDashboardScreen() {
 
         Alert.alert("Error", result.error || "Failed to update status.");
       }
-    } catch (error) {
+    } catch {
       setIsOpen(!newStatus); // Revert on failure
 
       Alert.alert("Error", "Something went wrong.");
@@ -423,7 +450,7 @@ export default function SupplierDashboardScreen() {
           If this persists, please restart the app.
         </Text>
 
-        <TouchableOpacity style={styles.retryButton} onPress={loadSupplierData}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => loadSupplierData()}>
           <Text style={styles.retryButtonText}>Refresh</Text>
         </TouchableOpacity>
 
@@ -707,50 +734,12 @@ export default function SupplierDashboardScreen() {
             Update your prices and stock status
           </Text>
 
-          {/* Helper to get flame icon based on cylinder size */}
-
-          {(() => {
-            const getIconForSize = (s: number) => {
-              switch (s) {
-                case 6:
-                  return "fire";
-
-                case 13:
-                  return "burn";
-
-                case 19:
-                  return "fire-alt";
-
-                default:
-                  return "fire";
-              }
-            };
-
-            return null;
-          })()}
-
           {[6, 13, 19].map((size) => {
             const priceData = getPriceForSize(size);
 
             const currentPrice = priceData?.price || 0;
 
             const inStock = priceData?.inStock ?? true;
-
-            const getIconForSize = (s: number) => {
-              switch (s) {
-                case 6:
-                  return "fire";
-
-                case 13:
-                  return "burn";
-
-                case 19:
-                  return "fire-alt";
-
-                default:
-                  return "fire";
-              }
-            };
 
             return (
               <View key={size} style={styles.priceCard}>

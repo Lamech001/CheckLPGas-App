@@ -1,8 +1,7 @@
-import { requestLocationPermission } from '../services/locationService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppStatusBar } from '../components/AppStatusBar';
 
@@ -13,24 +12,6 @@ export default function RoleSelectScreen() {
     (role as 'consumer' | 'supplier') || 'consumer'
   );
 
-  const handleContinue = async () => {
-    // Request location permission for safety purposes
-    const hasPermission = await requestLocationPermission();
-    
-    if (!hasPermission) {
-      Alert.alert(
-        'Location Access Required',
-        'We need access to your location for safety purposes and to show you nearby gas services. Please allow location access to continue.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue Anyway', onPress: () => navigateToSignup() }
-        ]
-      );
-      return;
-    }
-
-    navigateToSignup();
-  };
 
   const navigateToSignup = () => {
     if (selectedRole === 'consumer') {

@@ -1,110 +1,90 @@
 {
   "expo": {
     "name": "GasAround",
-
     "slug": "GasAround",
-
     "version": "1.0.0",
-
     "orientation": "portrait",
-
     "scheme": "gasaround",
-
     "userInterfaceStyle": "automatic",
-
     "ios": {
       "supportsTablet": true,
-
       "infoPlist": {
         "NSCallKitUsageDescription": "This app needs access to make phone calls to suppliers.",
-
         "NSLocationWhenInUseUsageDescription": "This app uses your location (when enabled) to show nearby gas suppliers."
       }
     },
-
     "android": {
       "softwareKeyboardLayoutMode": "resize",
-
       "icon": "./assets/images/favicon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#FFFFFF"
       },
-
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBx7sgnkd94tyDqmivuSm_gbjJm9qymG7A"
         }
       },
-
       "permissions": [
         "android.permission.CALL_PHONE",
-
         "android.permission.ACCESS_FINE_LOCATION",
-
         "android.permission.ACCESS_COARSE_LOCATION",
-
         "android.permission.POST_NOTIFICATIONS"
       ],
-
       "predictiveBackGestureEnabled": false,
-
       "package": "com.lamech_kosgei.GasAround",
-
       "intentFilters": [
         {
           "action": "VIEW",
-
           "data": [
             {
               "scheme": "gasaround"
             }
           ],
-
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
-
     "web": {
       "output": "static",
-
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
-
-      "expo-notifications",
-
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/favicon.png",
+          "color": "#4CAF50",
+          "sounds": []
+        }
+      ],
       [
         "expo-splash-screen",
-
         {
           "image": "./assets/images/favicon.png",
-
           "imageWidth": 300,
-
           "resizeMode": "contain",
-
           "backgroundColor": "#FFFFFF",
-
           "dark": {
             "backgroundColor": "#1A2A53",
-
             "image": "./assets/images/favicon.png"
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
-
     "experiments": {
       "typedRoutes": true
     },
-
     "extra": {
       "router": {},
-
       "eas": {
         "projectId": "61fd7208-df41-4f19-a225-3b3b1ef11382"
       }

@@ -3,10 +3,10 @@ import { AppStatusBar } from "@/components/AppStatusBar";
 import { auth, db } from "@/config/firebase";
 
 import {
-  getOrCreateConversation,
-  sendMessage,
-  stopConsumerLiveLocationSharing,
-  updateConsumerLiveLocation,
+    getOrCreateConversation,
+    sendMessage,
+    stopConsumerLiveLocationSharing,
+    updateConsumerLiveLocation,
 } from "@/services/chatService";
 
 import { sendNewOrderNotification } from "@/services/notificationService";
@@ -23,25 +23,25 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { doc, getDoc } from "firebase/firestore";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 type OrderStep = "cylinder_size" | "gas_type" | "confirm";
@@ -103,7 +103,7 @@ export default function OrderScreen() {
 
   const inputRef = useRef<TextInput | null>(null);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
 
   const currentUser = auth.currentUser;
 
@@ -173,32 +173,11 @@ export default function OrderScreen() {
         : "";
 
   const conversationIdRef = useRef<string>("");
-
-  useEffect(() => {
-    initConversation();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (locationSubscriptionRef.current) {
-        locationSubscriptionRef.current.remove();
-
-        locationSubscriptionRef.current = null;
-      }
-
-      // Keep last saved location in Firestore when the app closes or user goes offline.
-    };
-  }, []);
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-
-      duration: 300,
-
-      useNativeDriver: true,
-    }).start();
-  }, [currentStep]);
+  // Stable timestamp ref for purity-safe order IDs (avoids Date.now() in render paths)
+  const stableOrderTimestampRef = useRef<string>(
+    // eslint-disable-next-line react-hooks/purity
+    `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  );
 
   const getConsumerPhoneNumber = async (): Promise<string | undefined> => {
     if (currentUser?.phoneNumber) {
@@ -251,12 +230,39 @@ export default function OrderScreen() {
     }
 
     const result = await getOrCreateConversation(conversationPayload);
+
     if (result.success && result.conversationId) {
       setConversationId(result.conversationId);
-
       conversationIdRef.current = result.conversationId;
     }
   };
+
+  useEffect(() => {
+    Promise.resolve().then(() => initConversation());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (locationSubscriptionRef.current) {
+        locationSubscriptionRef.current.remove();
+
+        locationSubscriptionRef.current = null;
+      }
+
+      // Keep last saved location in Firestore when the app closes or user goes offline.
+    };
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+
+      duration: 300,
+
+      useNativeDriver: true,
+    }).start();
+  }, [currentStep, fadeAnim]);
 
   useEffect(() => {
     conversationIdRef.current = conversationId;
@@ -462,7 +468,7 @@ export default function OrderScreen() {
       const orderMessage = `NEW ORDER:\n• Cylinder Size: ${cylinderSize}\n• Gas Brand: ${gasBrand}\n• Quantity: ${quantity}\n• Delivery Address: ${address}`;
 
       if (conversationId) {
-        const msgResult = await sendMessage({
+        await sendMessage({
           conversationId,
 
           senderId: currentUser.uid,
@@ -514,7 +520,10 @@ export default function OrderScreen() {
           userId: currentUser.uid,
 
           order: {
-            orderId: conversationId || `local-${Date.now()}`,
+            orderId:
+              conversationId ||
+              conversationIdRef.current ||
+              stableOrderTimestampRef.current,
 
             cylinderSize: (cylinderSize || "Unknown") as any,
 
@@ -1080,385 +1089,278 @@ export default function OrderScreen() {
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
-
-  keyboardAvoidingRoot: { flex: 1 },
-
+  keyboardAvoidingRoot: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
-
-    justifyContent: "center",
-
-    alignItems: "center",
-
-    zIndex: 20,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-
   loadingCard: {
-    width: "82%",
-
-    maxWidth: 320,
-
-    backgroundColor: "#fff",
-
-    borderRadius: 18,
-
-    paddingVertical: 22,
-
-    paddingHorizontal: 18,
-
-    alignItems: "center",
-
-    shadowColor: "#000",
-
-    shadowOpacity: 0.14,
-
-    shadowRadius: 12,
-
-    shadowOffset: { width: 0, height: 6 },
-
-    elevation: 6,
+    backgroundColor: '#fff',
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
   },
-
   loadingText: {
     marginTop: 12,
-
-    color: "#1c1c1e",
-
-    fontSize: 14,
-
-    fontWeight: "600",
-
-    textAlign: "center",
+    fontSize: 16,
+    color: '#666',
   },
-
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#007AFF",
-
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingTop: 50,
+    paddingVertical: 12,
   },
-
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
-
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-
-  headerInfo: { flex: 1, marginLeft: 12 },
-
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
-
+  backBtnDisabled: {
+    opacity: 0.5,
+  },
+  headerInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
   headerSubtitle: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.9)',
     marginTop: 2,
   },
-
   stepIndicator: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.2)",
-
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-
-  stepText: { fontSize: 14, color: "#fff" },
-
+  stepText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
   progressContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-
-    backgroundColor: "#fff",
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e5e9",
+    backgroundColor: '#fff',
   },
-
-  progressItem: { flexDirection: "row", alignItems: "center" },
-
+  progressItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   progressDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#d1d1d6",
+    backgroundColor: '#d1d1d6',
   },
-
-  progressDotActive: { backgroundColor: "#007AFF" },
-
+  progressDotActive: {
+    backgroundColor: '#007AFF',
+  },
   progressLine: {
-    width: 30,
+    flex: 1,
     height: 2,
-    backgroundColor: "#e1e5e9",
-    marginHorizontal: 4,
+    backgroundColor: '#d1d1d6',
+    marginHorizontal: 8,
   },
-
-  messageList: { flex: 1 },
-
-  messagesContainer: { padding: 16 },
-
-  systemMessageContainer: {
-    flexDirection: "row",
-    marginBottom: 16,
-    alignItems: "flex-end",
+  messageList: {
+    flex: 1,
   },
-
-  botAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#007AFF",
-
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
+  messagesContainer: {
+    padding: 16,
   },
-
-  systemBubble: {
-    maxWidth: "75%",
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-
-    padding: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+  inputWrapper: {
+    borderTopWidth: 1,
+    borderTopColor: '#e1e5e9',
+    backgroundColor: '#fff',
   },
-
-  systemText: { fontSize: 15, lineHeight: 22, color: "#1c1c1e" },
-
-  optionsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 12,
+  liveLocationContainer: {
+    padding: 12,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  liveLocationLabel: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 8,
+  },
+  liveLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     gap: 8,
   },
-
-  optionButton: {
-    backgroundColor: "#007AFF",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-
+  liveLocationButtonStart: {
+    backgroundColor: '#007AFF',
+  },
+  liveLocationButtonStop: {
+    backgroundColor: '#FF3B30',
+  },
+  liveLocationButtonDisabled: {
+    opacity: 0.5,
+  },
+  liveLocationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  liveLocationMeta: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 6,
+  },
+  liveLocationError: {
+    fontSize: 12,
+    color: '#FF3B30',
+    marginTop: 6,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: 12,
+    backgroundColor: '#fff',
+  },
+  inputArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
     borderRadius: 20,
-    marginRight: 4,
-    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-
-  optionText: { color: "#fff", fontSize: 14, fontWeight: "600" },
-
-  optionButtonDisabled: { opacity: 0.6 },
-
+  busyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  busyText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#666',
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1c1c1e',
+    paddingVertical: 4,
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#d1d1d6',
+  },
+  systemMessageContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  botAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  systemBubble: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e1e5e9',
+  },
+  systemText: {
+    fontSize: 15,
+    color: '#1c1c1e',
+    lineHeight: 20,
+  },
+  optionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  optionButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  optionButtonDisabled: {
+    opacity: 0.5,
+  },
+  optionText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
   userMessageContainer: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: 16,
-    alignItems: "flex-end",
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
   },
-
   userBubble: {
-    maxWidth: "75%",
-    backgroundColor: "#007AFF",
-    borderRadius: 18,
-
+    backgroundColor: '#007AFF',
+    borderRadius: 16,
+    padding: 12,
     borderBottomRightRadius: 4,
-    padding: 14,
   },
-
-  userText: { fontSize: 15, lineHeight: 22, color: "#fff" },
-
+  userText: {
+    fontSize: 15,
+    color: '#fff',
+    lineHeight: 20,
+  },
   userAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#34C759",
-
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 10,
-  },
-
-  inputWrapper: {
-    borderTopWidth: 1,
-
-    borderTopColor: "#e1e5e9",
-
-    backgroundColor: "#fff",
-
-    paddingTop: 8,
-
-    paddingBottom: 4,
-  },
-
-  quickReplies: {
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-
-  quickReplyBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#f0f0f0",
-
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  quickReplyText: { fontSize: 16, fontWeight: "600", color: "#007AFF" },
-
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
-  },
-
-  inputArea: {
-    flex: 1,
-
-    marginRight: 8,
-  },
-
-  input: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 22,
-    paddingHorizontal: 16,
-
-    paddingVertical: 10,
-    maxHeight: 100,
-    fontSize: 16,
-    color: "#1c1c1e",
-  },
-
-  busyRow: {
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    gap: 8,
-
-    paddingHorizontal: 4,
-
-    paddingTop: 6,
-  },
-
-  busyText: {
-    color: "#4a5a6a",
-
-    fontSize: 12,
-
-    fontWeight: "600",
-  },
-
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#007AFF",
-
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  backBtnDisabled: { opacity: 0.6 },
-
-  sendButtonDisabled: { backgroundColor: "#d1d1d6" },
-
-  liveLocationContainer: {
-    backgroundColor: "#f0f7ff",
-
-    borderTopWidth: 1,
-
-    borderTopColor: "#d9e9ff",
-
-    borderBottomWidth: 1,
-
-    borderBottomColor: "#d9e9ff",
-
-    paddingHorizontal: 16,
-
-    paddingVertical: 10,
-
-    gap: 8,
-  },
-
-  liveLocationLabel: {
-    color: "#124274",
-
-    fontSize: 13,
-
-    fontWeight: "600",
-  },
-
-  liveLocationButton: {
-    borderRadius: 10,
-
-    paddingVertical: 10,
-
-    paddingHorizontal: 12,
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    gap: 8,
-  },
-
-  liveLocationButtonStart: {
-    backgroundColor: "#007AFF",
-  },
-
-  liveLocationButtonStop: {
-    backgroundColor: "#E53935",
-  },
-
-  liveLocationButtonText: {
-    color: "#fff",
-
-    fontSize: 14,
-
-    fontWeight: "700",
-  },
-
-  liveLocationButtonDisabled: { opacity: 0.6 },
-
-  liveLocationMeta: {
-    color: "#2d5f94",
-
-    fontSize: 12,
-  },
-
-  liveLocationError: {
-    color: "#B00020",
-
-    fontSize: 12,
+    backgroundColor: '#34C759',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
 });

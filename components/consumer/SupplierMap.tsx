@@ -5,7 +5,7 @@ import {
   getPriceForSize,
   SupplierWithDistance,
 } from "@/services/types/supplier";
-import { useEffect, useState } from "react";
+import { memo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import MapView, { Circle, Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
@@ -111,110 +111,121 @@ interface SupplierMapProps {
   suppliers: SupplierWithDistance[];
   selectedSize: CylinderSize | "all";
   radiusKm?: number;
+  maxMarkers?: number;
 }
 
-export const SupplierMap: React.FC<SupplierMapProps> = ({
-  userLocation,
-  suppliers,
-  selectedSize,
-  radiusKm = 1,
-}) => {
-  // Calculate delta for radius to fill the map using theme constants
-  const [region, setRegion] = useState({
-    latitude: userLocation.latitude,
-    longitude: userLocation.longitude,
-    latitudeDelta: AppSizes.mapLatitudeDelta,
-    longitudeDelta: AppSizes.mapLongitudeDelta,
-  });
-
-  useEffect(() => {
-    // Update region when user location changes
-    setRegion({
+export const SupplierMap: React.FC<SupplierMapProps> = memo(
+  function SupplierMap({
+    userLocation,
+    suppliers,
+    selectedSize,
+    radiusKm = 1,
+    maxMarkers = 50,
+  }) {
+    // Calculate delta for radius to fill the map using theme constants
+    const [region, setRegion] = useState({
       latitude: userLocation.latitude,
       longitude: userLocation.longitude,
       latitudeDelta: AppSizes.mapLatitudeDelta,
       longitudeDelta: AppSizes.mapLongitudeDelta,
     });
-  }, [userLocation]);
 
-  const getMarkerColor = (supplier: SupplierWithDistance) => {
-    if (selectedSize !== "all") {
-      const price = getPriceForSize(supplier.prices, selectedSize);
-      return price !== null
+    // Paginate suppliers to show only the closest ones to avoid performance issues
+    const visibleSuppliers = suppliers.slice(0, maxMarkers);
+
+    const getMarkerColor = (supplier: SupplierWithDistance) => {
+      if (selectedSize !== "all") {
+        const price = getPriceForSize(supplier.prices, selectedSize);
+        return price !== null
+          ? AppColors.mapSupplierOpen
+          : AppColors.mapSupplierClosed;
+      }
+      return supplier.isOpen
         ? AppColors.mapSupplierOpen
         : AppColors.mapSupplierClosed;
-    }
-    return supplier.isOpen
-      ? AppColors.mapSupplierOpen
-      : AppColors.mapSupplierClosed;
-  };
+    };
 
-  const getMarkerPrice = (supplier: SupplierWithDistance) => {
-    if (selectedSize !== "all") {
-      const price = getPriceForSize(supplier.prices, selectedSize);
-      return price !== null ? formatPrice(price) : "N/A";
-    }
+    const getMarkerPrice = (supplier: SupplierWithDistance) => {
+      if (selectedSize !== "all") {
+        const price = getPriceForSize(supplier.prices, selectedSize);
+        return price !== null ? formatPrice(price) : "N/A";
+      }
 
-    const inStockPrices = supplier.prices.filter((p) => p.inStock);
-    if (inStockPrices.length === 0) return "N/A";
-    const minPrice = Math.min(...inStockPrices.map((p) => p.price));
-    return formatPrice(minPrice);
-  };
+      const inStockPrices = supplier.prices.filter((p) => p.inStock);
+      if (inStockPrices.length === 0) return "N/A";
+      const minPrice = Math.min(...inStockPrices.map((p) => p.price));
+      return formatPrice(minPrice);
+    };
 
-  return (
-    <View style={styles.container}>
-      <MapView
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        region={region}
-        onRegionChangeComplete={setRegion}
-        customMapStyle={professionalMapStyle}
-      >
-        {/* User Location */}
-        <Marker
-          coordinate={userLocation}
-          pinColor={AppColors.mapUserMarker}
-          title="Your Location"
-        />
+    // Validate user location coordinates before rendering
+    const safeUserLocation = {
+      latitude:
+        typeof userLocation?.latitude === "number" &&
+        isFinite(userLocation.latitude)
+          ? userLocation.latitude
+          : -1.286389,
+      longitude:
+        typeof userLocation?.longitude === "number" &&
+        isFinite(userLocation.longitude)
+          ? userLocation.longitude
+          : 36.817223,
+    };
 
-        {/* Radius Circle */}
-        <Circle
-          center={userLocation}
-          radius={radiusKm * 1000}
-          strokeColor={AppColors.mapRadiusStroke}
-          fillColor={AppColors.mapRadiusFill}
-          strokeWidth={AppSizes.mapStrokeWidth}
-        />
+    return (
+      <View style={styles.container}>
+        <MapView
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          region={region}
+          onRegionChangeComplete={setRegion}
+          customMapStyle={professionalMapStyle}
+        >
+          {/* User Location */}
+          <Marker
+            coordinate={safeUserLocation}
+            pinColor={AppColors.mapUserMarker}
+            title="Your Location"
+          />
 
-        {/* Supplier Markers */}
-        {suppliers.map((supplier) => {
-          const lat = supplier.location?.latitude;
-          const lng = supplier.location?.longitude;
+          {/* Radius Circle */}
+          <Circle
+            center={safeUserLocation}
+            radius={radiusKm * 1000}
+            strokeColor={AppColors.mapRadiusStroke}
+            fillColor={AppColors.mapRadiusFill}
+            strokeWidth={AppSizes.mapStrokeWidth}
+          />
 
-          // Prevent react-native-maps from crashing when coordinates are null/undefined
-          if (lat == null || lng == null) return null;
+          {/* Supplier Markers */}
+          {visibleSuppliers.map((supplier) => {
+            const lat = supplier.location?.latitude;
+            const lng = supplier.location?.longitude;
 
-          return (
-            <Marker
-              key={supplier.uid}
-              coordinate={{ latitude: lat, longitude: lng }}
-              pinColor={getMarkerColor(supplier)}
-              title={supplier.enterpriseName}
-              description={`${getMarkerPrice(supplier)} - ${supplier.phoneNumber}`}
-            />
-          );
-        })}
-      </MapView>
+            // Prevent react-native-maps from crashing when coordinates are null/undefined
+            if (lat == null || lng == null) return null;
 
-      {/* Radius Indicator */}
-      <View style={styles.radiusIndicator}>
-        <Text style={styles.radiusText}>
-          Showing suppliers within {radiusKm}km
-        </Text>
+            return (
+              <Marker
+                key={supplier.uid}
+                coordinate={{ latitude: lat, longitude: lng }}
+                pinColor={getMarkerColor(supplier)}
+                title={supplier.enterpriseName}
+                description={`${getMarkerPrice(supplier)} - ${supplier.phoneNumber}`}
+              />
+            );
+          })}
+        </MapView>
+
+        {/* Radius Indicator */}
+        <View style={styles.radiusIndicator}>
+          <Text style={styles.radiusText}>
+            Showing suppliers within {radiusKm}km
+          </Text>
+        </View>
       </View>
-    </View>
-  );
-};
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   container: {

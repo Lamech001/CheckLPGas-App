@@ -2,7 +2,7 @@ import { auth } from '@/config/firebase';
 import { canAccessVerifiedRole } from '@/services/authVerifiedGuardService';
 import { Tabs, useRouter } from 'expo-router';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function TabLayout() {
   const router = useRouter();
@@ -82,6 +82,7 @@ export default function TabLayout() {
       isActive = false;
       unsubscribe?.();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   // Show loading indicator while checking auth state

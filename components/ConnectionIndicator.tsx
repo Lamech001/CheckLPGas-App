@@ -3,31 +3,35 @@
  * Appears briefly when connection is restored, disappears when stable
  */
 
-import NetInfo from '@react-native-community/netinfo';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import NetInfo from "@react-native-community/netinfo";
+import React, { useEffect, useMemo, useState } from "react";
+import { Animated, StyleSheet, Text, View } from "react-native";
 
 export function ConnectionIndicator(): React.ReactElement | null {
   const [isVisible, setIsVisible] = useState(false);
-  const [message, setMessage] = useState('');
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [message, setMessage] = useState("");
+
+  // Keep Animated.Value out of React refs rules by memoizing instance.
+   
+  const fadeAnim = useMemo(() => new Animated.Value(0), []);
+  const hideTimeout = useMemo(
+    () => ({ current: null as ReturnType<typeof setTimeout> | null }),
+    [],
+  );
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const isConnected = state.isConnected === true && state.isInternetReachable === true;
-      
+      const isConnected =
+        state.isConnected === true && state.isInternetReachable === true;
+
       if (isConnected) {
-        // Show "Back online" briefly
-        setMessage('Back online');
+        setMessage("Back online");
         setIsVisible(true);
-        
-        // Clear any existing timeout
+
         if (hideTimeout.current) {
           clearTimeout(hideTimeout.current);
         }
-        
-        // Hide after 2 seconds
+
         hideTimeout.current = setTimeout(() => {
           Animated.timing(fadeAnim, {
             toValue: 0,
@@ -44,16 +48,16 @@ export function ConnectionIndicator(): React.ReactElement | null {
         clearTimeout(hideTimeout.current);
       }
     };
-  }, [fadeAnim]);
+  }, [fadeAnim, hideTimeout]);
 
   useEffect(() => {
-    if (isVisible) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
+    if (!isVisible) return;
+
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
   }, [isVisible, fadeAnim]);
 
   if (!isVisible) return null;
@@ -70,21 +74,21 @@ export function ConnectionIndicator(): React.ReactElement | null {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: "center",
     zIndex: 9999,
   },
   content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#4CAF50',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#4CAF50",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -94,12 +98,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     marginRight: 8,
   },
   text: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

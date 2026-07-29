@@ -3,15 +3,15 @@ import { AppColors, AppShadows, AppSizes } from "@/constants/appTheme";
 import { logOut } from "@/services/authService";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { memo, useState } from "react";
 import {
   Alert,
-  Dimensions,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { ConsumerProfile } from "./ConsumerProfile";
@@ -23,13 +23,12 @@ interface SideMenuProps {
   userName: string;
 }
 
-const { width } = Dimensions.get("window");
-
-export const SideMenu: React.FC<SideMenuProps> = ({
+export const SideMenu: React.FC<SideMenuProps> = memo(function SideMenu({
   visible,
   onClose,
   userName,
-}) => {
+}) {
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const user = auth.currentUser;
   const [profileVisible, setProfileVisible] = useState(false);
@@ -50,7 +49,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
             } else {
               Alert.alert("Error", result.error || "Failed to log out");
             }
-          } catch (error) {
+          } catch {
             Alert.alert("Error", "Failed to log out");
           }
         },
@@ -129,7 +128,12 @@ export const SideMenu: React.FC<SideMenuProps> = ({
         onRequestClose={onClose}
       >
         <View style={styles.overlay}>
-          <View style={styles.menuContainer}>
+          <View
+            style={[
+              styles.menuContainer,
+              { width: width * AppSizes.menuWidth },
+            ]}
+          >
             {/* Close Button */}
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <FontAwesome5 name="times" size={24} color="#666" />
@@ -199,7 +203,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
       />
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   overlay: {
@@ -211,7 +215,6 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.backdrop,
   },
   menuContainer: {
-    width: width * AppSizes.menuWidth,
     backgroundColor: AppColors.white,
     height: "100%",
     ...AppShadows.menu,

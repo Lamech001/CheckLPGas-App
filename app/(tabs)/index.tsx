@@ -11,10 +11,10 @@ import { SupplierMap } from "@/components/consumer/SupplierMap";
 import { auth } from "@/config/firebase";
 
 import {
-    AppColors,
-    AppConstants,
-    AppShadows,
-    AppSizes,
+  AppColors,
+  AppConstants,
+  AppShadows,
+  AppSizes,
 } from "@/constants/appTheme";
 
 import { useSuppliers } from "@/hooks/useSuppliers";
@@ -22,17 +22,16 @@ import { useSuppliers } from "@/hooks/useSuppliers";
 import { getUserRole } from "@/services/authService";
 
 import {
-    cacheUserLocation,
-    getCachedUserLocation,
+  cacheUserLocation,
+  getCachedUserLocation,
 } from "@/services/cacheService";
 
 import { getCurrentLocation } from "@/services/locationService";
 
 import {
-    notificationListeners,
-    requestNotificationPermissions,
-    sendLocalNotification,
-    setupNotifications,
+  notificationListeners,
+  requestNotificationPermissions,
+  sendLocalNotification
 } from "@/services/notificationService";
 
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -43,13 +42,13 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const DEFAULT_RADIUS_KM = AppConstants.defaultRadiusKm;
@@ -71,8 +70,6 @@ export default function ConsumerHomeScreen() {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
 
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-
-  const [isSyncing, setIsSyncing] = useState(false);
 
   // Use new cached suppliers hook with built-in real-time updates and offline-first
 
@@ -102,100 +99,72 @@ export default function ConsumerHomeScreen() {
     enabled: !!userLocation,
   });
 
-  // Instant profile bootstrap from local cache (offline-first)
+  // Combined initialization effect: profile, notifications, role check, and notifications listener
   useEffect(() => {
     let cancelled = false;
+    let notificationTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let roleCheckTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let notificationUnsubscribe: (() => void) | null = null;
 
-    const loadCachedProfile = async () => {
+    // 1. Load cached profile and update from Firebase auth
+    const loadProfile = async () => {
       try {
-        const { getCachedUserProfile } =
-          await import("@/services/cacheService");
+        const { getCachedUserProfile } = await import("@/services/cacheService");
         const profile = await getCachedUserProfile<{ displayName?: string }>();
         if (cancelled) return;
 
         const cachedName = profile?.displayName;
         if (cachedName) {
-          setUserName(cachedName.split(" ")[0]); // First name only
+          setUserName(cachedName.split(" ")[0]);
         }
       } catch {
         // ignore
       }
+
+      // Update name from Firebase auth
+      const user = auth.currentUser;
+      if (user?.displayName && !cancelled) {
+        setUserName(user.displayName.split(" ")[0] || "");
+      }
     };
 
-    void loadCachedProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Update name when Firebase auth is ready
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (user?.displayName) {
-      setUserName(user.displayName.split(" ")[0]); // First name only
-    }
-  }, []);
-
-  // Setup push notifications in background - don't block UI
-
-  useEffect(() => {
-    // Defer notifications setup to prioritize UI rendering
-
-    const timeoutId = setTimeout(() => {
+    // 2. Setup push notifications (deferred)
+    // Note: setupNotifications is called globally in _layout.tsx
+    // This only handles the welcome notification for first-time users
+    notificationTimeoutId = setTimeout(() => {
+      if (cancelled) return;
+      
       const initNotifications = async () => {
         const hasPermission = await requestNotificationPermissions();
+        if (cancelled) return;
 
         if (hasPermission) {
-          await setupNotifications();
-
-          // Send welcome notification
-
           await sendLocalNotification(
             "Welcome to GasAround!",
-
             "You will receive alerts when new suppliers are available near you.",
-
             { type: "welcome" },
           );
         }
       };
 
       initNotifications();
-    }, 1000); // Delay 1 second after UI renders
+    }, 1000);
 
-    return () => clearTimeout(timeoutId);
-  }, []);
-
-  // Listen for notifications
-
-  useEffect(() => {
-    const unsubscribe = notificationListeners(
+    // 3. Setup notification listeners
+    notificationUnsubscribe = notificationListeners(
       (_notification) => {
-        // New notification received
-
+        if (cancelled) return;
         setUnreadNotifications((prev) => prev + 1);
       },
-
       (response) => {
-        // User tapped notification
-
-        const data = response.notification.request.content.data as Record<
-          string,
-          any
-        >;
+        if (cancelled) return;
+        
+        const data = response.notification.request.content.data as Record<string, any>;
 
         if (data?.type === "new_supplier") {
-          // Could navigate to specific supplier
-
           Alert.alert("New Supplier!", `Check out ${data.supplierName}`);
-
           return;
         }
-
-        // If supplier receives an order notification and they somehow land here,
-
-        // deep link to orders/chat to ensure they "get the order".
 
         if (data?.type === "new_order" && data?.supplierId) {
           const conversationId = data?.conversationId as string | undefined;
@@ -203,10 +172,7 @@ export default function ConsumerHomeScreen() {
           if (conversationId) {
             router.replace({
               pathname: "/supplier/chat",
-
-              params: {
-                conversationId,
-              },
+              params: { conversationId },
             });
           } else {
             router.replace("/supplier/orders");
@@ -215,37 +181,23 @@ export default function ConsumerHomeScreen() {
       },
     );
 
-    return () => unsubscribe();
-  }, []);
+    // 4. Role check (deferred)
+    roleCheckTimeoutId = setTimeout(() => {
+      if (cancelled) return;
 
-  // Quick role check in background - don't block UI
-
-  useEffect(() => {
-    // Defer role check to not block initial render
-
-    const timeoutId = setTimeout(() => {
       const checkRoleAndRedirect = async () => {
         const user = auth.currentUser;
-
         if (!user) return;
 
         try {
-          // Check global hint first for instant response
-
           // @ts-ignore
-
           const hintedRole = global.userRoleHint;
-
           if (hintedRole === "supplier") {
             router.replace("/supplier/dashboard");
-
             return;
           }
 
-          // Fallback to Firestore check
-
           const roleResult = await getUserRole(user.uid);
-
           if (roleResult.role === "supplier") {
             router.replace("/supplier/dashboard");
           }
@@ -257,7 +209,14 @@ export default function ConsumerHomeScreen() {
       checkRoleAndRedirect();
     }, 200);
 
-    return () => clearTimeout(timeoutId);
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+      if (notificationTimeoutId) clearTimeout(notificationTimeoutId);
+      if (roleCheckTimeoutId) clearTimeout(roleCheckTimeoutId);
+      if (notificationUnsubscribe) notificationUnsubscribe();
+    };
   }, [router]);
 
   // Load location - cached first for instant display, then fresh
@@ -407,7 +366,7 @@ export default function ConsumerHomeScreen() {
             </View>
           )}
 
-          {isSyncing && hookIsOnline && (
+          {suppliersFetching && hookIsOnline && (
             <View style={styles.syncIndicator}>
               <FontAwesome5 name="sync" size={10} color={AppColors.primary} />
 

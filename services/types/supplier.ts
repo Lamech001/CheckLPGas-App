@@ -19,6 +19,8 @@ export interface SupplierData {
     longitude: number;
     address: string;
   };
+  /** Geohash computed from location.latitude/longitude for efficient geospatial Firestore queries */
+  geohash?: string;
   prices: GasPrice[];
   isOpen: boolean;
   openingHours?: {
@@ -44,20 +46,24 @@ export interface SupplierWithDistance extends SupplierData {
 }
 
 export interface FilterState {
-  size: CylinderSize | 'all';
+  size: CylinderSize | "all";
 }
 
-export const CYLINDER_SIZES: { value: CylinderSize | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 6, label: '6kg' },
-  { value: 13, label: '13kg' },
-  { value: 19, label: '19kg' },
-];
+export const CYLINDER_SIZES: { value: CylinderSize | "all"; label: string }[] =
+  [
+    { value: "all", label: "All" },
+    { value: 6, label: "6kg" },
+    { value: 13, label: "13kg" },
+    { value: 19, label: "19kg" },
+  ];
 
 export const DEFAULT_RADIUS_KM = 1;
 
-export const getPriceForSize = (prices: GasPrice[], size: CylinderSize): number | null => {
-  const price = prices.find(p => p.size === size);
+export const getPriceForSize = (
+  prices: GasPrice[],
+  size: CylinderSize,
+): number | null => {
+  const price = prices.find((p) => p.size === size);
   return price?.inStock ? price.price : null;
 };
 

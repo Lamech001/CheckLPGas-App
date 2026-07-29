@@ -133,7 +133,7 @@ export function useUserProfile(options: UseUserProfileOptions): UseUserProfileRe
     const userRef = doc(db, 'users', userId);
     unsubscribeRef.current = onSnapshot(
       userRef,
-      (snapshot) => {
+      (snapshot: any) => {
         if (!isMounted.current) return;
 
         if (snapshot.exists()) {
@@ -161,7 +161,7 @@ export function useUserProfile(options: UseUserProfileOptions): UseUserProfileRe
           }).catch(() => {});
         }
       },
-      (err) => {
+      (err: any) => {
         if (isMounted.current && !profile) {
           setError(err);
         }

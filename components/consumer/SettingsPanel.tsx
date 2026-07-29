@@ -1,11 +1,11 @@
-import { auth, db } from '@/config/firebase';
-import { useTheme } from '@/contexts/ThemeContext';
-import { deleteAccount } from '@/services/authService';
-import { FontAwesome5 } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { doc, setDoc } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import { auth, db } from "@/config/firebase";
+import { useTheme } from "@/contexts/ThemeContext";
+import { deleteAccount } from "@/services/authService";
+import { FontAwesome5 } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { doc, setDoc } from "firebase/firestore";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     Alert,
     Dimensions,
@@ -16,42 +16,73 @@ import {
     Text,
     TouchableOpacity,
     View,
-} from 'react-native';
+} from "react-native";
 
-const { height } = Dimensions.get('window');
+const { height } = Dimensions.get("window");
 
 interface SettingsPanelProps {
   visible: boolean;
   onClose: () => void;
 }
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }) => {
+interface SettingItemProps {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  value: boolean;
+  onToggle: (value: boolean) => void;
+}
+
+const SettingItem: React.FC<SettingItemProps> = ({
+  icon,
+  title,
+  subtitle,
+  value,
+  onToggle,
+}) => (
+  <View style={styles.settingItem}>
+    <View style={styles.settingIconContainer}>
+      <FontAwesome5 name={icon} size={20} color="#1976D2" />
+    </View>
+    <View style={styles.settingTextContainer}>
+      <Text style={styles.settingTitle}>{title}</Text>
+      {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+    </View>
+    <Switch
+      value={value}
+      onValueChange={onToggle}
+      trackColor={{ false: "#767577", true: "#81b0ff" }}
+      thumbColor={value ? "#1976D2" : "#f4f3f4"}
+    />
+  </View>
+);
+
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({
+  visible,
+  onClose,
+}) => {
   const router = useRouter();
   const { isDarkMode, toggleTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
-  useEffect(() => {
-    loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
-      const notifications = await AsyncStorage.getItem('@notificationsEnabled');
-      const location = await AsyncStorage.getItem('@locationEnabled');
+      const notifications = await AsyncStorage.getItem("@notificationsEnabled");
+      const location = await AsyncStorage.getItem("@locationEnabled");
 
       // Note: dark mode is controlled by ThemeContext; we only read AsyncStorage
       // so the rest of the app can initialize consistently.
-      const darkMode = await AsyncStorage.getItem('@darkModeEnabled');
+      const darkMode = await AsyncStorage.getItem("@darkModeEnabled");
 
-      if (notifications !== null) setNotificationsEnabled(notifications === 'true');
-      if (location !== null) setLocationEnabled(location === 'true');
+      if (notifications !== null)
+        setNotificationsEnabled(notifications === "true");
+      if (location !== null) setLocationEnabled(location === "true");
 
       if (darkMode !== null) {
         // ThemeContext owns the actual state; avoid infinite loops by only toggling
         // when the stored value differs from the current theme.
-        const stored = darkMode === 'true';
+        const stored = darkMode === "true";
         if (stored !== isDarkMode) {
           toggleTheme();
         }
@@ -59,7 +90,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
     } catch {
       // Silently handle
     }
-  };
+  }, [isDarkMode, toggleTheme]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadSettings();
+  }, [loadSettings]);
 
   const handleToggleDarkMode = async (value: boolean) => {
     // Update app theme immediately
@@ -67,7 +103,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
 
     // Persist locally for fast startup
     try {
-      await AsyncStorage.setItem('@darkModeEnabled', value.toString());
+      await AsyncStorage.setItem("@darkModeEnabled", value.toString());
     } catch {
       // Silently handle
     }
@@ -77,12 +113,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
     if (user) {
       try {
         await setDoc(
-          doc(db, 'users', user.uid),
+          doc(db, "users", user.uid),
           {
             preferences: { darkMode: value },
             updatedAt: new Date(),
           },
-          { merge: true }
+          { merge: true },
         );
       } catch {
         // Silently handle
@@ -92,43 +128,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
 
   const toggleNotifications = async (value: boolean) => {
     setNotificationsEnabled(value);
-    await AsyncStorage.setItem('@notificationsEnabled', value.toString());
+    await AsyncStorage.setItem("@notificationsEnabled", value.toString());
   };
 
   const toggleLocation = async (value: boolean) => {
     setLocationEnabled(value);
-    await AsyncStorage.setItem('@locationEnabled', value.toString());
+    await AsyncStorage.setItem("@locationEnabled", value.toString());
   };
-
-  const SettingItem = ({ 
-    icon, 
-    title, 
-    subtitle, 
-    value, 
-    onToggle 
-  }: { 
-    icon: string; 
-    title: string; 
-    subtitle?: string; 
-    value: boolean; 
-    onToggle: (value: boolean) => void;
-  }) => (
-    <View style={styles.settingItem}>
-      <View style={styles.settingIconContainer}>
-        <FontAwesome5 name={icon} size={20} color="#1976D2" />
-      </View>
-      <View style={styles.settingTextContainer}>
-        <Text style={styles.settingTitle}>{title}</Text>
-        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: '#767577', true: '#81b0ff' }}
-        thumbColor={value ? '#1976D2' : '#f4f3f4'}
-      />
-    </View>
-  );
 
   return (
     <Modal
@@ -148,14 +154,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Appearance Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Appearance</Text>
               <SettingItem
-                icon={isDarkMode ? 'moon' : 'sun'}
+                icon={isDarkMode ? "moon" : "sun"}
                 title="Dark Mode"
-                subtitle={isDarkMode ? 'Dark theme enabled' : 'Light theme enabled'}
+                subtitle={
+                  isDarkMode ? "Dark theme enabled" : "Light theme enabled"
+                }
                 value={isDarkMode}
                 onToggle={handleToggleDarkMode}
               />
@@ -189,7 +200,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>About</Text>
               <View style={styles.aboutItem}>
-                <FontAwesome5 name="info-circle" size={20} color="#1976D2" style={styles.aboutIcon} />
+                <FontAwesome5
+                  name="info-circle"
+                  size={20}
+                  color="#1976D2"
+                  style={styles.aboutIcon}
+                />
                 <View>
                   <Text style={styles.aboutTitle}>GasAround Kenya</Text>
                   <Text style={styles.aboutVersion}>Version 1.0.1</Text>
@@ -198,7 +214,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
 
               <TouchableOpacity
                 style={styles.policyRow}
-                onPress={() => router.push('/privacy')}
+                onPress={() => router.push("/privacy")}
               >
                 <FontAwesome5 name="file-contract" size={18} color="#1976D2" />
                 <Text style={styles.policyRowText}>Privacy Policy</Text>
@@ -206,7 +222,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
 
               <TouchableOpacity
                 style={styles.policyRow}
-                onPress={() => router.push('/terms')}
+                onPress={() => router.push("/terms")}
               >
                 <FontAwesome5 name="file-contract" size={18} color="#1976D2" />
                 <Text style={styles.policyRowText}>Terms of Service</Text>
@@ -221,28 +237,34 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
                 style={styles.deleteAccountRow}
                 onPress={() => {
                   Alert.alert(
-                    'Delete account',
-                    'This will permanently delete your account and data. This action cannot be undone.',
+                    "Delete account",
+                    "This will permanently delete your account and data. This action cannot be undone.",
                     [
-                      { text: 'Cancel', style: 'cancel' },
+                      { text: "Cancel", style: "cancel" },
                       {
-                        text: 'Delete',
-                        style: 'destructive',
+                        text: "Delete",
+                        style: "destructive",
                         onPress: async () => {
                           try {
                             const result = await deleteAccount();
                             if (!result.success) {
-                              Alert.alert('Error', result.error || 'Failed to delete account');
+                              Alert.alert(
+                                "Error",
+                                result.error || "Failed to delete account",
+                              );
                               return;
                             }
                             onClose();
-                            router.replace('/role-select');
+                            router.replace("/role-select");
                           } catch (e: any) {
-                            Alert.alert('Error', e?.message || 'Failed to delete account');
+                            Alert.alert(
+                              "Error",
+                              e?.message || "Failed to delete account",
+                            );
                           }
                         },
                       },
-                    ]
+                    ],
                   );
                 }}
               >
@@ -260,30 +282,30 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ visible, onClose }
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   panelContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: height * 0.85,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   closeButton: {
     padding: 4,
@@ -296,26 +318,26 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    color: "#666",
+    textTransform: "uppercase",
     marginBottom: 12,
     letterSpacing: 0.5,
   },
   settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   settingIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#E3F2FD',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#E3F2FD",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   settingTextContainer: {
@@ -323,17 +345,17 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontWeight: "500",
+    color: "#333",
   },
   settingSubtitle: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 2,
   },
   aboutItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 16,
   },
   aboutIcon: {
@@ -341,43 +363,43 @@ const styles = StyleSheet.create({
   },
   aboutTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontWeight: "500",
+    color: "#333",
   },
   aboutVersion: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 2,
   },
   deleteAccountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: '#ffebee',
-    justifyContent: 'center',
+    backgroundColor: "#ffebee",
+    justifyContent: "center",
   },
   deleteAccountText: {
-    color: '#f44336',
+    color: "#f44336",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   policyRow: {
     marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: '#f5f8ff',
-    justifyContent: 'flex-start',
+    backgroundColor: "#f5f8ff",
+    justifyContent: "flex-start",
   },
   policyRowText: {
-    color: '#1976D2',
+    color: "#1976D2",
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

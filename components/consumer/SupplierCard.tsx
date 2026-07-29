@@ -1,166 +1,208 @@
-import { AppColors, AppSizes } from '@/constants/appTheme';
-import { CylinderSize, formatDistance, formatPrice, getPriceForSize, SupplierWithDistance } from '@/services/types/supplier';
-import { FontAwesome5 } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { RateSupplierModal, SupplierRatingBadge } from '../RateSupplierModal';
-import { SupplierDetailModal } from './SupplierDetailModal';
+import { AppColors, AppSizes } from "@/constants/appTheme";
+import {
+  CylinderSize,
+  formatDistance,
+  formatPrice,
+  GasPrice,
+  getPriceForSize,
+  SupplierWithDistance,
+} from "@/services/types/supplier";
+import { FontAwesome5 } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
+import { memo, useState } from "react";
+import {
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { RateSupplierModal, SupplierRatingBadge } from "../RateSupplierModal";
+import { SupplierDetailModal } from "./SupplierDetailModal";
 
 interface SupplierCardProps {
   supplier: SupplierWithDistance;
-  selectedSize: CylinderSize | 'all';
+  selectedSize: CylinderSize | "all";
 }
 
-export const SupplierCard: React.FC<SupplierCardProps> = ({ supplier, selectedSize }) => {
-  const router = useRouter();
-  const [rateModalVisible, setRateModalVisible] = useState(false);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
+export const SupplierCard: React.FC<SupplierCardProps> = memo(
+  function SupplierCard({ supplier, selectedSize }) {
+    const router = useRouter();
+    const [rateModalVisible, setRateModalVisible] = useState(false);
+    const [detailModalVisible, setDetailModalVisible] = useState(false);
 
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setDetailModalVisible(true);
-  };
+    const handlePress = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setDetailModalVisible(true);
+    };
 
-  const handleCall = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL(`tel:${supplier.phoneNumber}`);
-  };
+    const handleCall = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Linking.openURL(`tel:${supplier.phoneNumber}`);
+    };
 
-  const getDisplayPrice = () => {
-    if (selectedSize !== 'all') {
-      const price = getPriceForSize(supplier.prices, selectedSize);
-      return price !== null ? formatPrice(price) : 'Out of stock';
-    }
-    
-    // Show all available prices
-    const inStockPrices = supplier.prices.filter(p => p.inStock);
-    if (inStockPrices.length === 0) return 'Out of stock';
-    
-    const minPrice = Math.min(...inStockPrices.map(p => p.price));
-    return `From ${formatPrice(minPrice)}`;
-  };
+    const getDisplayPrice = () => {
+      if (selectedSize !== "all") {
+        const price = getPriceForSize(supplier.prices, selectedSize);
+        return price !== null ? formatPrice(price) : "Out of stock";
+      }
 
-  const getStockInfo = () => {
-    if (selectedSize !== 'all') {
-      const price = supplier.prices.find(p => p.size === selectedSize);
-      return price?.inStock ? `${selectedSize}kg Cylinder` : `${selectedSize}kg - Out of stock`;
-    }
-    
-    const available = supplier.prices.filter(p => p.inStock).map(p => `${p.size}kg`).join(', ');
-    return available || 'No stock available';
-  };
+      // Show all available prices
+      const inStockPrices = supplier.prices.filter((p: GasPrice) => p.inStock);
+      if (inStockPrices.length === 0) return "Out of stock";
 
-  return (
-    <>
-      <Pressable style={styles.card} onPress={handlePress} android_ripple={{ color: 'rgba(0,0,0,0.05)' }}>
-        <View style={styles.leftContent}>
-          <View style={styles.iconContainer}>
-            <FontAwesome5 name="store" size={24} color="#FF6B35" />
+      const minPrice = Math.min(...inStockPrices.map((p: GasPrice) => p.price));
+      return `From ${formatPrice(minPrice)}`;
+    };
+
+    const getStockInfo = () => {
+      if (selectedSize !== "all") {
+        const price = supplier.prices.find(
+          (p: GasPrice) => p.size === selectedSize,
+        );
+        return price?.inStock
+          ? `${selectedSize}kg Cylinder`
+          : `${selectedSize}kg - Out of stock`;
+      }
+
+      const available = supplier.prices
+        .filter((p: GasPrice) => p.inStock)
+        .map((p: GasPrice) => `${p.size}kg`)
+        .join(", ");
+      return available || "No stock available";
+    };
+
+    return (
+      <>
+        <Pressable
+          style={styles.card}
+          onPress={handlePress}
+          android_ripple={{ color: "rgba(0,0,0,0.05)" }}
+        >
+          <View style={styles.leftContent}>
+            <View style={styles.iconContainer}>
+              <FontAwesome5 name="store" size={24} color="#FF6B35" />
+            </View>
+            <View style={styles.info}>
+              <View style={styles.nameRow}>
+                <Text style={styles.enterpriseName} numberOfLines={1}>
+                  {supplier.enterpriseName}
+                </Text>
+                <SupplierRatingBadge
+                  rating={supplier.rating || 0}
+                  totalRatings={supplier.totalRatings || 0}
+                  size="small"
+                  onPress={() => setRateModalVisible(true)}
+                />
+              </View>
+              <Text style={styles.stockInfo}>{getStockInfo()}</Text>
+              <View style={styles.distanceRow}>
+                <FontAwesome5 name="location-arrow" size={12} color="#4CAF50" />
+                <Text style={styles.distance}>
+                  {formatDistance(supplier.distance)}
+                </Text>
+                <View style={styles.dot} />
+                <Text
+                  style={[
+                    styles.status,
+                    { color: supplier.isOpen ? "#4CAF50" : "#f44336" },
+                  ]}
+                >
+                  {supplier.isOpen ? "Open Now" : "Closed"}
+                </Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.info}>
-            <View style={styles.nameRow}>
-              <Text style={styles.enterpriseName} numberOfLines={1}>
-                {supplier.enterpriseName}
-              </Text>
-              <SupplierRatingBadge 
-                rating={supplier.rating || 0} 
-                totalRatings={supplier.totalRatings || 0}
-                size="small"
+
+          <View style={styles.rightContent}>
+            <Text style={styles.price}>{getDisplayPrice()}</Text>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.rateButton}
                 onPress={() => setRateModalVisible(true)}
-              />
-            </View>
-            <Text style={styles.stockInfo}>{getStockInfo()}</Text>
-            <View style={styles.distanceRow}>
-              <FontAwesome5 name="location-arrow" size={12} color="#4CAF50" />
-              <Text style={styles.distance}>{formatDistance(supplier.distance)}</Text>
-              <View style={styles.dot} />
-              <Text style={[styles.status, { color: supplier.isOpen ? '#4CAF50' : '#f44336' }]}>
-                {supplier.isOpen ? 'Open Now' : 'Closed'}
-              </Text>
+              >
+                <FontAwesome5 name="star" size={14} color="#F59E0B" />
+                <Text style={styles.rateButtonText}>Rate</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.chatButton}
+                onPress={() =>
+                  router.push({
+                    pathname: "/consumer/order",
+                    params: { supplier: JSON.stringify(supplier) },
+                  })
+                }
+              >
+                <FontAwesome5 name="shopping-bag" size={14} color="#fff" />
+                <Text style={styles.chatButtonText}>Order</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+                <FontAwesome5 name="phone" size={14} color="#fff" />
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
-        
-        <View style={styles.rightContent}>
-          <Text style={styles.price}>{getDisplayPrice()}</Text>
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.rateButton} onPress={() => setRateModalVisible(true)}>
-              <FontAwesome5 name="star" size={14} color="#F59E0B" />
-              <Text style={styles.rateButtonText}>Rate</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chatButton} onPress={() => router.push({
-              pathname: '/consumer/order',
-              params: { supplier: JSON.stringify(supplier) }
-            })}>
-              <FontAwesome5 name="shopping-bag" size={14} color="#fff" />
-              <Text style={styles.chatButtonText}>Order</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-              <FontAwesome5 name="phone" size={14} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Pressable>
+        </Pressable>
 
-      <RateSupplierModal
-        visible={rateModalVisible}
-        supplierId={supplier.uid}
-        supplierName={supplier.enterpriseName}
-        onClose={() => setRateModalVisible(false)}
-      />
+        <RateSupplierModal
+          visible={rateModalVisible}
+          supplierId={supplier.uid}
+          supplierName={supplier.enterpriseName}
+          onClose={() => setRateModalVisible(false)}
+        />
 
-      <SupplierDetailModal
-        supplier={supplier}
-        visible={detailModalVisible}
-        onClose={() => setDetailModalVisible(false)}
-      />
-    </>
-  );
-};
+        <SupplierDetailModal
+          supplier={supplier}
+          visible={detailModalVisible}
+          onClose={() => setDetailModalVisible(false)}
+        />
+      </>
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    backgroundColor: "#fff",
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    alignItems: 'center',
+    alignItems: "center",
   },
   leftContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 8,
     backgroundColor: AppColors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   info: {
     flex: 1,
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: AppSizes.spacingXS,
   },
   enterpriseName: {
     fontSize: AppSizes.fontXLarge,
-    fontWeight: '600',
+    fontWeight: "600",
     color: AppColors.textPrimary,
     marginBottom: AppSizes.spacingXS,
   },
@@ -170,8 +212,8 @@ const styles = StyleSheet.create({
     marginBottom: AppSizes.spacingXS,
   },
   distanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   distance: {
     fontSize: AppSizes.fontXSmall,
@@ -189,55 +231,55 @@ const styles = StyleSheet.create({
     fontSize: AppSizes.fontXSmall,
   },
   rightContent: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   price: {
     fontSize: AppSizes.fontXLarge,
-    fontWeight: '700',
+    fontWeight: "700",
     color: AppColors.textPrimary,
     marginBottom: AppSizes.spacingSmall,
   },
   buttonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   rateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: "#FDBA74",
   },
   rateButtonText: {
-    color: '#F59E0B',
+    color: "#F59E0B",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   chatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#1976D2',
+    backgroundColor: "#1976D2",
   },
   chatButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   callButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: AppColors.success,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

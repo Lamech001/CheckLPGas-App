@@ -42,13 +42,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Toggle between light and dark
   const toggleTheme = () => {
-    const currentEffective = getEffectiveTheme(theme, systemColorScheme ?? null);
+    const currentEffective = getEffectiveTheme(theme, systemColorScheme === 'light' || systemColorScheme === 'dark' ? systemColorScheme : null);
     const newTheme = currentEffective === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
   };
 
   // Calculate effective theme
-  const isDarkMode = getEffectiveTheme(theme, systemColorScheme ?? null) === 'dark';
+  const isDarkMode = getEffectiveTheme(theme, systemColorScheme === 'light' || systemColorScheme === 'dark' ? systemColorScheme : null) === 'dark';
 
   if (!isLoaded) {
     return null; // or a loading spinner

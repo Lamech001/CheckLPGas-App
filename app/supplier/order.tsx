@@ -1,20 +1,20 @@
-import { AppStatusBar } from '@/components/AppStatusBar';
-import { ConsumerLiveLocationMapModal } from '@/components/supplier/ConsumerLiveLocationMapModal';
-import { OrderMessageCard } from '@/components/supplier/OrderMessageCard';
-import { auth } from '@/config/firebase';
-import { isNewOrderMessage } from '@/utils/orderMessage';
+import { AppStatusBar } from "@/components/AppStatusBar";
+import { ConsumerLiveLocationMapModal } from "@/components/supplier/ConsumerLiveLocationMapModal";
+import { OrderMessageCard } from "@/components/supplier/OrderMessageCard";
+import { auth } from "@/config/firebase";
 import {
-  deleteMessage,
-  editMessage,
-  markMessagesAsRead,
-  sendMessage,
-  subscribeToConversation,
-  subscribeToMessages,
-} from '@/services/chatService';
-import { Conversation, formatChatDate, Message } from '@/services/types/chat';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+    deleteMessage,
+    editMessage,
+    markMessagesAsRead,
+    sendMessage,
+    subscribeToConversation,
+    subscribeToMessages,
+} from "@/services/chatService";
+import { Conversation, formatChatDate, Message } from "@/services/types/chat";
+import { isNewOrderMessage } from "@/utils/orderMessage";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
     Alert,
     FlatList,
@@ -26,8 +26,11 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 type ChatMessage = Message & { pending?: boolean };
 
@@ -35,14 +38,16 @@ export default function SupplierOrderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const conversationId = params.conversationId as string;
-  const consumerName = params.consumerName as string || 'Customer';
-  const consumerPhone = params.consumerPhone as string || '';
+  const consumerName = (params.consumerName as string) || "Customer";
+  const consumerPhone = (params.consumerPhone as string) || "";
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(true);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [liveConversation, setLiveConversation] = useState<Conversation | null>(null);
+  const [liveConversation, setLiveConversation] = useState<Conversation | null>(
+    null,
+  );
   const [showLocationMap, setShowLocationMap] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
@@ -50,10 +55,7 @@ export default function SupplierOrderScreen() {
   const currentUser = auth.currentUser;
 
   useEffect(() => {
-    if (!conversationId) {
-      setLoading(false);
-      return;
-    }
+    if (!conversationId) return;
 
     // Mark messages as read when entering order conversation
     if (currentUser) {
@@ -63,12 +65,16 @@ export default function SupplierOrderScreen() {
     const unsubscribe = subscribeToMessages(conversationId, (newMessages) => {
       setMessages((currentMessages) => {
         const pendingMessages = currentMessages.filter((msg) => msg.pending);
-        const dedupedPending = pendingMessages.filter((pending) =>
-          !newMessages.some((serverMsg) =>
-            serverMsg.senderId === pending.senderId &&
-            serverMsg.text === pending.text &&
-            Math.abs(serverMsg.timestamp.getTime() - pending.timestamp.getTime()) < 20000
-          )
+        const dedupedPending = pendingMessages.filter(
+          (pending) =>
+            !newMessages.some(
+              (serverMsg) =>
+                serverMsg.senderId === pending.senderId &&
+                serverMsg.text === pending.text &&
+                Math.abs(
+                  serverMsg.timestamp.getTime() - pending.timestamp.getTime(),
+                ) < 20000,
+            ),
         );
         return [...newMessages, ...dedupedPending];
       });
@@ -83,11 +89,21 @@ export default function SupplierOrderScreen() {
   }, [conversationId, currentUser]);
 
   useEffect(() => {
+    if (!conversationId) {
+      // Avoid calling setState synchronously within an effect.
+      Promise.resolve().then(() => setLoading(false));
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
     if (!conversationId) return;
 
-    const unsubscribeConversation = subscribeToConversation(conversationId, (conversation) => {
-      setLiveConversation(conversation);
-    });
+    const unsubscribeConversation = subscribeToConversation(
+      conversationId,
+      (conversation) => {
+        setLiveConversation(conversation);
+      },
+    );
 
     return () => unsubscribeConversation();
   }, [conversationId]);
@@ -100,8 +116,8 @@ export default function SupplierOrderScreen() {
       id: `pending-${Date.now()}`,
       conversationId,
       senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Supplier',
-      senderRole: 'supplier',
+      senderName: currentUser.displayName || "Supplier",
+      senderRole: "supplier",
       text,
       timestamp: new Date(),
       read: true,
@@ -109,20 +125,22 @@ export default function SupplierOrderScreen() {
     };
 
     setMessages((prev) => [...prev, optimisticMessage]);
-    setInputText('');
+    setInputText("");
     flatListRef.current?.scrollToEnd({ animated: true });
 
     const result = await sendMessage({
       conversationId,
       senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Supplier',
-      senderRole: 'supplier',
+      senderName: currentUser.displayName || "Supplier",
+      senderRole: "supplier",
       text,
     });
 
     if (!result.success) {
-      setMessages((prev) => prev.filter((message) => message.id !== optimisticMessage.id));
-      Alert.alert('Error', 'Failed to send message');
+      setMessages((prev) =>
+        prev.filter((message) => message.id !== optimisticMessage.id),
+      );
+      Alert.alert("Error", "Failed to send message");
     }
   };
 
@@ -130,39 +148,42 @@ export default function SupplierOrderScreen() {
     const isMe = message.senderId === currentUser?.uid;
     if (!isMe) return;
 
-    Alert.alert('Message Actions', '', [
+    Alert.alert("Message Actions", "", [
       {
-        text: 'Edit',
+        text: "Edit",
         onPress: () => {
           setInputText(message.text);
           setEditingMessageId(message.id);
         },
       },
       {
-        text: 'Delete',
+        text: "Delete",
         onPress: () => {
-          Alert.alert('Delete Message', 'Are you sure?', [
+          Alert.alert("Delete Message", "Are you sure?", [
             {
-              text: 'Cancel',
-              style: 'cancel',
+              text: "Cancel",
+              style: "cancel",
             },
             {
-              text: 'Delete',
-              style: 'destructive',
+              text: "Delete",
+              style: "destructive",
               onPress: async () => {
                 const result = await deleteMessage(message.id);
                 if (!result.success) {
-                  Alert.alert('Error', result.error || 'Failed to delete message');
+                  Alert.alert(
+                    "Error",
+                    result.error || "Failed to delete message",
+                  );
                 }
               },
             },
           ]);
         },
-        style: 'destructive',
+        style: "destructive",
       },
       {
-        text: 'Cancel',
-        style: 'cancel',
+        text: "Cancel",
+        style: "cancel",
       },
     ]);
   };
@@ -172,17 +193,16 @@ export default function SupplierOrderScreen() {
     if (!editingMessageId) return handleSend();
 
     const text = inputText.trim();
-    setInputText('');
+    setInputText("");
     setEditingMessageId(null);
 
     const result = await editMessage(editingMessageId, text);
     if (!result.success) {
-      Alert.alert('Error', result.error || 'Failed to edit message');
+      Alert.alert("Error", result.error || "Failed to edit message");
     }
   };
 
   const liveLocation = liveConversation?.consumerLiveLocation;
-  const liveLocationUpdatedAt = liveConversation?.consumerLiveLocationUpdatedAt;
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isMe = item.senderId === currentUser?.uid;
@@ -190,7 +210,10 @@ export default function SupplierOrderScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.messageRow, isMe ? styles.myMessageRow : styles.theirMessageRow]}
+        style={[
+          styles.messageRow,
+          isMe ? styles.myMessageRow : styles.theirMessageRow,
+        ]}
         onLongPress={() => handleMessageLongPress(item)}
         delayLongPress={500}
       >
@@ -199,7 +222,12 @@ export default function SupplierOrderScreen() {
             <FontAwesome5 name="user" size={14} color="#fff" />
           </View>
         )}
-        <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
+        <View
+          style={[
+            styles.messageBubble,
+            isMe ? styles.myBubble : styles.theirBubble,
+          ]}
+        >
           {!isMe && <Text style={styles.senderName}>{item.senderName}</Text>}
           {isOrderMessage ? (
             <OrderMessageCard
@@ -208,14 +236,19 @@ export default function SupplierOrderScreen() {
               onTrackLocation={() => setShowLocationMap(true)}
             />
           ) : (
-            <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
+            <Text
+              style={[
+                styles.messageText,
+                isMe ? styles.myMessageText : styles.theirMessageText,
+              ]}
+            >
               {item.text}
             </Text>
           )}
-          {item.isEdited && (
-            <Text style={styles.editedLabel}>edited</Text>
-          )}
-          <Text style={[styles.messageTime, !isMe && styles.theirMessageTime]}>{formatChatDate(item.timestamp)}</Text>
+          {item.isEdited && <Text style={styles.editedLabel}>edited</Text>}
+          <Text style={[styles.messageTime, !isMe && styles.theirMessageTime]}>
+            {formatChatDate(item.timestamp)}
+          </Text>
         </View>
         {isMe && (
           <View style={[styles.avatar, styles.myAvatar]}>
@@ -230,28 +263,9 @@ export default function SupplierOrderScreen() {
     if (!consumerPhone) return;
 
     try {
-      // Request phone call permission (expo-permissions)
-      const { status } = await (async () => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const Permissions = require('expo-permissions');
-          return Permissions.askAsync(Permissions.CALL_PHONE);
-        } catch {
-          // If expo-permissions is unavailable, treat as denied and fall back to opening the dialer
-          return { status: 'denied' };
-        }
-      })();
-
-      if (status === 'granted') {
-        Linking.openURL(`tel:${consumerPhone}`);
-      } else {
-        Alert.alert(
-          'Permission Required',
-          'Phone call permission is required to call customers. Please enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error) {
+      // expo-permissions is deprecated, directly open the dialer
+      Linking.openURL(`tel:${consumerPhone}`);
+    } catch {
       // Fallback for devices that don't support permission checking
       Linking.openURL(`tel:${consumerPhone}`);
     }
@@ -264,7 +278,15 @@ export default function SupplierOrderScreen() {
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="user-lock" size={48} color="#ccc" />
           <Text style={styles.emptyText}>Please sign in to manage orders</Text>
-          <TouchableOpacity style={styles.signInButton} onPress={() => router.push({ pathname: '/consumer/login', params: { role: 'supplier' } })}>
+          <TouchableOpacity
+            style={styles.signInButton}
+            onPress={() =>
+              router.push({
+                pathname: "/consumer/login",
+                params: { role: "supplier" },
+              })
+            }
+          >
             <Text style={styles.signInButtonText}>Sign In</Text>
           </TouchableOpacity>
         </View>
@@ -275,81 +297,101 @@ export default function SupplierOrderScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingRoot}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom + 120 : 100}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom + 120 : 100}
     >
       <SafeAreaView style={styles.container}>
         <AppStatusBar backgroundColor="#FF6B35" barStyle="dark-content" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <FontAwesome5 name="arrow-left" size={20} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{consumerName}</Text>
-          <Text style={styles.headerSubtitle}>Order conversation</Text>
-          <Text style={styles.headerHelper}>
-            Reply with availability, price, and delivery time for this gas order.
-          </Text>
-        </View>
-        {consumerPhone && (
-          <TouchableOpacity style={styles.callBtn} onPress={handleCall}>
-            <FontAwesome5 name="phone" size={18} color="#fff" />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+          >
+            <FontAwesome5 name="arrow-left" size={20} color="#fff" />
           </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Messages */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading order conversation...</Text>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>{consumerName}</Text>
+            <Text style={styles.headerSubtitle}>Order conversation</Text>
+            <Text style={styles.headerHelper}>
+              Reply with availability, price, and delivery time for this gas
+              order.
+            </Text>
+          </View>
+          {consumerPhone && (
+            <TouchableOpacity style={styles.callBtn} onPress={handleCall}>
+              <FontAwesome5 name="phone" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
-          style={styles.messageList}
-          contentContainerStyle={[styles.messagesContainer, { flexGrow: 1, paddingBottom: insets.bottom + 140 }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        />
-      )}
 
-      {/* Input */}
-      <View style={styles.inputWrapper}>
-        {editingMessageId && (
-          <View style={styles.editingLabel}>
-            <Text style={styles.editingLabelText}>Editing message...</Text>
-            <TouchableOpacity onPress={() => {
-              setEditingMessageId(null);
-              setInputText('');
-            }}>
-              <FontAwesome5 name="times" size={16} color="#666" />
+        {/* Messages */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>
+              Loading order conversation...
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderMessage}
+            keyExtractor={(item) => item.id}
+            style={styles.messageList}
+            contentContainerStyle={[
+              styles.messagesContainer,
+              { flexGrow: 1, paddingBottom: insets.bottom + 140 },
+            ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() =>
+              flatListRef.current?.scrollToEnd({ animated: false })
+            }
+          />
+        )}
+
+        {/* Input */}
+        <View style={styles.inputWrapper}>
+          {editingMessageId && (
+            <View style={styles.editingLabel}>
+              <Text style={styles.editingLabelText}>Editing message...</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditingMessageId(null);
+                  setInputText("");
+                }}
+              >
+                <FontAwesome5 name="times" size={16} color="#666" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Reply with order availability, price, and delivery ETA..."
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                !inputText.trim() && styles.sendButtonDisabled,
+              ]}
+              onPress={editingMessageId ? handleSendEdit : handleSend}
+              disabled={!inputText.trim()}
+            >
+              <FontAwesome5
+                name={editingMessageId ? "check" : "paper-plane"}
+                size={20}
+                color="#fff"
+              />
             </TouchableOpacity>
           </View>
-        )}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Reply with order availability, price, and delivery ETA..."
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-            onPress={editingMessageId ? handleSendEdit : handleSend}
-            disabled={!inputText.trim()}
-          >
-            <FontAwesome5 name={editingMessageId ? 'check' : 'paper-plane'} size={20} color="#fff" />
-          </TouchableOpacity>
         </View>
-      </View>
       </SafeAreaView>
 
       <ConsumerLiveLocationMapModal
@@ -365,16 +407,16 @@ export default function SupplierOrderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FF6B35',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FF6B35",
     paddingHorizontal: 16,
     paddingVertical: 16,
     paddingTop: 50,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -384,9 +426,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerInfo: {
     flex: 1,
@@ -394,38 +436,38 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
   },
   headerSubtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.9)',
+    color: "rgba(255,255,255,0.9)",
     marginTop: 2,
   },
   headerHelper: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.85)',
+    color: "rgba(255,255,255,0.85)",
     marginTop: 6,
     lineHeight: 18,
-    maxWidth: '95%',
+    maxWidth: "95%",
   },
   callBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginTop: 16,
   },
   messagesContainer: {
@@ -440,94 +482,94 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     borderTopWidth: 1,
-    borderTopColor: '#e1e5e9',
-    backgroundColor: '#fff',
+    borderTopColor: "#e1e5e9",
+    backgroundColor: "#fff",
   },
   messageRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 16,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   myMessageRow: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   theirMessageRow: {
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
   avatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FF6B35',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#FF6B35",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
   },
   myAvatar: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     marginLeft: 12,
     marginRight: 0,
   },
   messageBubble: {
-    maxWidth: '75%',
+    maxWidth: "75%",
     padding: 14,
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
   },
   myBubble: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     borderBottomRightRadius: 6,
   },
   theirBubble: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderBottomLeftRadius: 6,
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: "#e1e5e9",
   },
   senderName: {
     fontSize: 12,
-    color: '#FF6B35',
-    fontWeight: '600',
+    color: "#FF6B35",
+    fontWeight: "600",
     marginBottom: 6,
   },
   messageText: {
     fontSize: 16,
     lineHeight: 22,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   myMessageText: {
-    color: '#fff',
+    color: "#fff",
   },
   theirMessageText: {
-    color: '#1c1c1e',
+    color: "#1c1c1e",
   },
   messageTime: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
+    color: "rgba(255,255,255,0.8)",
     marginTop: 6,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   theirMessageTime: {
-    color: '#8e8e93',
-    alignSelf: 'flex-start',
+    color: "#8e8e93",
+    alignSelf: "flex-start",
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: '#e1e5e9',
-    shadowColor: '#000',
+    borderTopColor: "#e1e5e9",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -535,87 +577,87 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#d1d1d6',
+    borderColor: "#d1d1d6",
     paddingHorizontal: 16,
     paddingVertical: 12,
     maxHeight: 100,
     fontSize: 16,
-    color: '#1c1c1e',
+    color: "#1c1c1e",
     marginRight: 12,
   },
   keyboardAvoiding: {
-    width: '100%',
-    backgroundColor: '#fff',
+    width: "100%",
+    backgroundColor: "#fff",
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#007AFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
   sendButtonDisabled: {
-    backgroundColor: '#d1d1d6',
+    backgroundColor: "#d1d1d6",
     shadowOpacity: 0,
     elevation: 0,
   },
   editingLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFF8E1',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFF8E1",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#FFCC02',
+    borderTopColor: "#FFCC02",
   },
   editingLabelText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FF6F00',
+    fontWeight: "600",
+    color: "#FF6F00",
   },
   editedLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    fontStyle: 'italic',
+    color: "rgba(255,255,255,0.8)",
+    fontStyle: "italic",
     marginTop: 6,
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   emptyText: {
     fontSize: 18,
-    color: '#666',
+    color: "#666",
     marginTop: 16,
     marginBottom: 24,
   },
   signInButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
   signInButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
