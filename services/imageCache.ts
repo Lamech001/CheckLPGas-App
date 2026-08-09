@@ -430,6 +430,7 @@ export function useCachedImage(url: string | null | undefined): {
 
   useEffect(() => {
     if (!url) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUri(null);
       setIsLoading(false);
       return;

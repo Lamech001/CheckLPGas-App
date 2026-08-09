@@ -5,6 +5,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/**
+ * Hook specifically for supplier data with caching
+ */
+import { cacheSuppliers, getCachedSuppliers } from '@/services/cacheService';
+import { getSuppliersWithinRadius } from '@/services/supplierService';
+import { SupplierWithDistance } from '@/services/types/supplier';
+
 interface UseCachedDataOptions<T> {
   cacheKey: string;
   fetchFn: () => Promise<T>;
@@ -91,13 +98,14 @@ export function useCachedData<T>({
     isMounted.current = true;
     
     if (enabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchData(true);
     }
 
     return () => {
       isMounted.current = false;
     };
-  }, [enabled, cacheKey]);
+  }, [enabled, cacheKey, fetchData]);
 
   // Auto-refresh interval
   useEffect(() => {
@@ -128,13 +136,6 @@ export function useCachedData<T>({
     isStale,
   };
 }
-
-/**
- * Hook specifically for supplier data with caching
- */
-import { cacheSuppliers, getCachedSuppliers } from '@/services/cacheService';
-import { getSuppliersWithinRadius } from '@/services/supplierService';
-import { SupplierWithDistance } from '@/services/types/supplier';
 
 export function useCachedSuppliers(
   userLocation: { latitude: number; longitude: number } | null,

@@ -7,8 +7,8 @@
  * - Background refresh overwrites local data with server data on success
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '@/config/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type CacheLogContext = {
   key: string;
@@ -19,7 +19,7 @@ type CacheLogContext = {
 function safeLogError(message: string, err: unknown, context?: CacheLogContext) {
   try {
     const error = err instanceof Error ? err : undefined;
-    // eslint-disable-next-line no-console
+     
     console.error(message, {
       ...(error ? { name: error.name, message: error.message, stack: error.stack } : { err }),
       ...(context || {}),
@@ -268,6 +268,7 @@ export async function cacheOrderDetail(orderId: string, item: ConsumerOrder | nu
   await writePersistent<ConsumerOrder>(key, OFFLINE_DETAIL_VERSION, item);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function readOrderDetailLocal(orderId: string): Promise<ConsumerOrder | null> {
   const key = orderByIdCacheKey(orderId);
   return readPersistent<ConsumerOrder | null>(key, OFFLINE_DETAIL_VERSION);

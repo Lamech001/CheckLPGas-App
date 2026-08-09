@@ -317,7 +317,7 @@ export const registerSupplier = async (
 
         sendEmailVerification(user).catch(() => {}),
       ]);
-    } catch (profileError: any) {
+    } catch {
       // Non-critical, don't fail registration
     }
 

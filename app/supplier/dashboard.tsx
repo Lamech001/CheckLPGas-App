@@ -13,10 +13,15 @@ import { canAccessVerifiedRole } from "@/services/authVerifiedGuardService";
 import { subscribeToSupplierConversations } from "@/services/chatService";
 
 import {
-  getSupplierData,
-  toggleShopStatus,
-  updateSupplierPrices,
+    getSupplierData,
+    toggleShopStatus,
+    updateSupplierPrices,
 } from "@/services/supplierAuthService";
+
+import {
+    getSupplierDashboardState,
+    saveSupplierDashboardState,
+} from "@/services/dashboardStateService";
 
 import type { SupplierData } from "@/services/types/supplier";
 
@@ -29,17 +34,17 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  ActivityIndicator,
-  Alert,
-  BackHandler,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    BackHandler,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -159,6 +164,12 @@ export default function SupplierDashboardScreen() {
 
     const fetchData = async () => {
       try {
+        // Load persisted dashboard state first
+        const dashboardState = await getSupplierDashboardState();
+        if (isActive && dashboardState) {
+          setIsOpen(dashboardState.shopStatus);
+        }
+
         // Important: getSupplierData is now offline-first and can return cached data fast.
 
         // Avoid flipping the UI to a long spinner when we already have cached data.
@@ -321,6 +332,9 @@ export default function SupplierDashboardScreen() {
       const result = await toggleShopStatus(user.uid, newStatus);
 
       if (result.success) {
+        // Save dashboard state
+        await saveSupplierDashboardState({ shopStatus: newStatus });
+        
         Alert.alert(
           "Status Updated",
 

@@ -1,22 +1,22 @@
 import { db } from "@/config/firebase";
 
 import {
-  collection,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
+    collection,
+    getDocs,
+    onSnapshot,
+    orderBy,
+    query,
+    where,
 } from "firebase/firestore";
 
 import { calculateDistance } from "./cachedSupplierService";
 
 import { getGeoBounds } from "@/utils/geohashUtils";
 import {
-  CylinderSize,
-  DEFAULT_RADIUS_KM,
-  SupplierData,
-  SupplierWithDistance,
+    CylinderSize,
+    DEFAULT_RADIUS_KM,
+    SupplierData,
+    SupplierWithDistance,
 } from "./types/supplier";
 
 // Type aliases for Firebase types that may not be properly exported
@@ -76,7 +76,7 @@ export const getSuppliersWithinRadius = async (
       );
 
     return suppliers;
-  } catch (error) {
+  } catch {
     // Silently handle error - return empty array
 
     return [];
@@ -188,7 +188,7 @@ export const getSupplierById = async (
     }
 
     return null;
-  } catch (error) {
+  } catch {
     // Silently handle error
 
     return null;

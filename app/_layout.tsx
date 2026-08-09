@@ -71,24 +71,36 @@ function AppContent() {
   }, []);
 
   // WhatsApp-like persistence:
-  // If a verified consumer session marker exists on this device,
-  // skip login and go straight to the consumer dashboard.
+  // If a verified session marker exists on this device,
+  // skip login and go straight to the appropriate dashboard.
   useEffect(() => {
     let cancelled = false;
 
     const bootstrap = async () => {
       try {
+        // First check if we have a persistent session marker
         const session = await getPersistentSession();
         if (cancelled) return;
 
-        if (
-          session?.role === "consumer" &&
-          session?.emailVerified &&
-          session?.uid
-        ) {
-          router.replace("/(tabs)");
+        if (session?.role && session?.emailVerified && session?.uid) {
+          // Session marker exists - try to restore Firebase auth session
+          const canRestore = await sessionManager.restoreSession();
+          
+          if (canRestore) {
+            // Session is valid, navigate to appropriate dashboard
+            if (session.role === "consumer") {
+              router.replace("/(tabs)");
+            } else if (session.role === "supplier") {
+              router.replace("/supplier/dashboard");
+            }
+          } else {
+            // Session expired, clear it and let normal auth flow handle it
+            const { clearPersistentSession } = await import('@/services/persistenceSessionService');
+            await clearPersistentSession();
+          }
         }
-      } catch {
+      } catch (error) {
+        console.warn('[RootLayout] Session bootstrap error:', error);
         // Ignore and fall back to normal navigation
       }
     };

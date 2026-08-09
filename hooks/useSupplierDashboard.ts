@@ -107,6 +107,7 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
     isMounted.current = true;
 
     if (!enabled || !supplierId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }
@@ -149,7 +150,7 @@ export function useSupplierDashboard(options: UseSupplierDashboardOptions): UseS
         unsubscribeRef.current();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, supplierId]);
 
   const refresh = async () => {

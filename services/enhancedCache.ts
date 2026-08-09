@@ -57,12 +57,12 @@ export const CACHE_KEYS = {
 
 // TTL Configuration (in milliseconds)
 export const CACHE_TTL = {
-  // Auth - shorter TTL for security
+  // Auth - extended TTL for better persistence
   AUTH: {
     USER: 5 * 60 * 1000,        // 5 minutes
     USER_ROLE: 10 * 60 * 1000,  // 10 minutes
     TOKEN: 30 * 60 * 1000,      // 30 minutes
-    SESSION: 60 * 60 * 1000,    // 1 hour
+    SESSION: 30 * 24 * 60 * 60 * 1000, // 30 days - extended for persistence
     PERMISSIONS: 15 * 60 * 1000, // 15 minutes
   },
   // Suppliers - 30 minute TTL to reduce frequent updates

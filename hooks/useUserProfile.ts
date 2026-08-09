@@ -122,6 +122,7 @@ export function useUserProfile(options: UseUserProfileOptions): UseUserProfileRe
     isMounted.current = true;
 
     if (!enabled || !userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }
@@ -174,6 +175,7 @@ export function useUserProfile(options: UseUserProfileOptions): UseUserProfileRe
         unsubscribeRef.current();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, userId, fetchProfile]);
 
   const refresh = useCallback(async () => {

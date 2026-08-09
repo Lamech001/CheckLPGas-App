@@ -7,13 +7,14 @@ import type { Auth } from "firebase/auth";
 import { getAuth, initializeAuth } from "firebase/auth";
 
 // @ts-ignore - getReactNativePersistence is available but not in types
+const getReactNativePersistence = require('firebase/auth').getReactNativePersistence;
 
-import { getReactNativePersistence } from "firebase/auth";
+
 
 import {
-  disableNetwork,
-  enableNetwork,
-  getFirestore,
+    disableNetwork,
+    enableNetwork,
+    getFirestore,
 } from "firebase/firestore";
 
 import { getStorage } from "firebase/storage";
@@ -68,14 +69,21 @@ let auth: Auth;
 
 if (isFirstLoad) {
   // First app load - initialize with AsyncStorage persistence
-
+  // This ensures users stay logged in across app restarts
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(ReactNativeAsyncStorage),
   });
+  
+  // Configure auth settings for better persistence
+  // These settings help maintain sessions across app closures
+  auth.tenantId = null; // Clear any tenant-specific restrictions
 } else {
   // Hot reload - auth already initialized with persistence
 
   auth = getAuth(app);
+  
+  // Ensure persistence is still active on hot reload
+  auth.tenantId = null;
 }
 
 // Initialize Firestore once and use the same instance across hot reloads

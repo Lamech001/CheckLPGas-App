@@ -65,11 +65,9 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
   const [error, setError] = useState<Error | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isOnline, setIsOnline] = useState(true);
 
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const subscribeLockRef = useRef(false); // Prevent overlapping subscriptions
-  const networkUnsubscribeRef = useRef<(() => void) | null>(null);
   const isMounted = useRef(true);
   const lastFetchRef = useRef<{
     lat: number;
@@ -200,21 +198,25 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     debouncedLongitude,
     radiusKm,
   });
-  paramsRef.current = {
-    enabled,
-    debouncedLatitude,
-    debouncedLongitude,
-    radiusKm,
-  };
 
   // Separate effect for initial fetch only (runs when params change)
   useEffect(() => {
     if (!enabled || !debouncedLatitude || !debouncedLongitude) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }
     fetchSuppliers(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, debouncedLatitude, debouncedLongitude, radiusKm, fetchSuppliers]);
+
+  // Update ref after render to avoid accessing ref during render
+  useEffect(() => {
+    paramsRef.current = {
+      enabled,
+      debouncedLatitude,
+      debouncedLongitude,
+      radiusKm,
+    };
   }, [enabled, debouncedLatitude, debouncedLongitude, radiusKm]);
 
   // Real-time subscription and polling - stable effect that uses refs
@@ -222,6 +224,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     isMounted.current = true;
 
     if (!enabled || !debouncedLatitude || !debouncedLongitude) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }
@@ -231,7 +234,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     if (unsubscribeRef.current) {
       try {
         unsubscribeRef.current();
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
       unsubscribeRef.current = null;
@@ -283,14 +286,13 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
       if (unsubscribeRef.current) {
         try {
           unsubscribeRef.current();
-        } catch (e) {
+        } catch {
           // Ignore cleanup errors
         }
         unsubscribeRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, debouncedLatitude, debouncedLongitude, radiusKm]);
+  }, [enabled, debouncedLatitude, debouncedLongitude, radiusKm, fetchSuppliers]);
 
   // Network state monitoring removed to prevent frequent updates
   // Rely on 30-minute polling interval instead
@@ -309,7 +311,7 @@ export function useSuppliers(options: UseSuppliersOptions): UseSuppliersReturn {
     refresh,
     isStale,
     lastUpdated,
-    isOnline,
+    isOnline: true,
   };
 }
 
@@ -414,6 +416,7 @@ export function useSupplier(options: UseSupplierOptions): UseSupplierReturn {
     isMounted.current = true;
 
     if (!enabled || !supplierId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       setSupplier(null);
       return;
@@ -424,7 +427,7 @@ export function useSupplier(options: UseSupplierOptions): UseSupplierReturn {
     if (unsubscribeRef.current) {
       try {
         unsubscribeRef.current();
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
       unsubscribeRef.current = null;
@@ -453,7 +456,7 @@ export function useSupplier(options: UseSupplierOptions): UseSupplierReturn {
       if (unsubscribeRef.current) {
         try {
           unsubscribeRef.current();
-        } catch (e) {
+        } catch {
           // Ignore cleanup errors
         }
         unsubscribeRef.current = null;

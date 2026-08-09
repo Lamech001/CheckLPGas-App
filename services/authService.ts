@@ -272,8 +272,18 @@ export const signUpWithEmail = async (userData: {
     await userDocPromise;
 
     // Fire email promise in background
+    void emailPromise;
 
-    emailPromise;
+    // Sync with enhanced auth persistence for permanent session
+    try {
+      console.log('[AuthService] 💾 Syncing auth state after signup for permanent session');
+      const { syncAuthState } = await import("@/services/authPersistenceService");
+      await syncAuthState();
+      console.log('[AuthService] ✅ Auth state synced after signup');
+    } catch {
+      console.log('[AuthService] ⚠️ Enhanced auth persistence failed after signup');
+      // Ignore if enhanced auth persistence fails
+    }
 
     return { success: true, user: firebaseUser };
   } catch (error: any) {
@@ -498,17 +508,23 @@ export const signInWithEmail = async (credentials: {
 
     const userRole = roleResult.role || "consumer";
 
-    // Persist local session marker for offline-first startup
+    // Persist local session marker using enhanced auth persistence for permanent sessions
     try {
-      const { persistVerifiedSession } =
-        await import("@/services/persistenceSessionService");
-      await persistVerifiedSession({
-        role: userRole,
-        uid: user.uid,
-        emailVerified: true,
-      });
+      const { syncAuthState } = await import("@/services/authPersistenceService");
+      await syncAuthState();
     } catch {
-      // Silent fail - login still succeeds
+      // Fallback to basic persistence if enhanced service fails
+      try {
+        const { persistVerifiedSession } =
+          await import("@/services/persistenceSessionService");
+        await persistVerifiedSession({
+          role: userRole,
+          uid: user.uid,
+          emailVerified: true,
+        });
+      } catch {
+        // Silent fail - login still succeeds
+      }
     }
 
     return { success: true, user, role: userRole };
@@ -646,7 +662,7 @@ export const logOut = async (): Promise<{
           const supplierRef = doc(db, "suppliers", user.uid);
           await updateDoc(supplierRef, { isOpen: false });
         }
-      } catch (e) {
+      } catch {
         // Don't block logout if shop close fails
       }
     }
@@ -654,13 +670,31 @@ export const logOut = async (): Promise<{
     // Clear cached user data and session BEFORE signing out so UI/hooks
     // immediately re-render to an unauthenticated state and unsubscribe listeners.
     try {
+      console.log('[AuthService] 🧹 Starting logout cleanup process');
       const { clearPersistentSession } =
         await import("@/services/persistenceSessionService");
       const { clearCache, CACHE_KEYS } =
         await import("@/services/cacheService");
+      const { clearAllDashboardStates } =
+        await import("@/services/dashboardStateService");
+      const { stopAuthPersistence } =
+        await import("@/services/authPersistenceService");
+      
+      console.log('[AuthService] 🔴 Stopping enhanced auth persistence monitoring');
+      await stopAuthPersistence(); // Stop enhanced auth persistence monitoring
+      
+      console.log('[AuthService] 🗑️ Clearing persistent session');
       await clearPersistentSession();
+      
+      console.log('[AuthService] 🗑️ Clearing user profile cache');
       await clearCache(CACHE_KEYS.USER_PROFILE);
-    } catch {
+      
+      console.log('[AuthService] 🗑️ Clearing dashboard states');
+      await clearAllDashboardStates(); // Clear dashboard state on logout
+      
+      console.log('[AuthService] ✅ Logout cleanup completed');
+    } catch (error) {
+      console.log('[AuthService] ⚠️ Logout cleanup error:', error);
       // ignore
     }
 

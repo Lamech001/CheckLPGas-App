@@ -48,7 +48,7 @@ export const saveToCache = async <T>(
       version,
     };
     await AsyncStorage.setItem(key, JSON.stringify(entry));
-  } catch (error) {
+  } catch {
     // Silent fail - caching should not break the app
   }
 };
@@ -82,7 +82,7 @@ export const getFromCache = async <T>(
     }
 
     return entry.data;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

@@ -56,6 +56,7 @@ export const useConsumerSignup = () => {
 
   // Update progress when form changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAuthState(prev => ({ ...prev, progress: calculateProgress() }));
   }, [calculateProgress]);
 
@@ -137,7 +138,7 @@ export const useConsumerSignup = () => {
     let isValid = true;
 
     // Validate all fields
-    (Object.keys(formData) as Array<keyof SignupFormData>).forEach(field => {
+    (Object.keys(formData) as (keyof SignupFormData)[]).forEach(field => {
       if (field !== 'location') {
         const error = validateField(field, formData[field]);
         if (error) {

@@ -60,18 +60,28 @@ export default function ConsumerLogin() {
           );
           return;
         }
-        // Persist local session marker for auto-login
+        // Persist local session marker for auto-login using enhanced auth persistence
         try {
-          const { persistVerifiedSession } = await import('@/services/persistenceSessionService');
-          const sess: Omit<PersistentSession, 'createdAt' | 'updatedAt'> = {
-            role: 'consumer',
-            uid: result.user?.uid || '',
-            emailVerified: true,
-          };
-          // Fire-and-forget persistence; login already succeeded.
-          await persistVerifiedSession(sess);
+          console.log('[ConsumerLogin] 💾 Syncing auth state for permanent session');
+          const { syncAuthState } = await import('@/services/authPersistenceService');
+          await syncAuthState();
+          console.log('[ConsumerLogin] ✅ Auth state synced successfully');
         } catch {
-          // Ignore local persistence failures.
+          // Fallback to basic persistence if enhanced service fails
+          console.log('[ConsumerLogin] ⚠️ Enhanced auth failed, using fallback persistence');
+          try {
+            const { persistVerifiedSession } = await import('@/services/persistenceSessionService');
+            const sess: Omit<PersistentSession, 'createdAt' | 'updatedAt'> = {
+              role: 'consumer',
+              uid: result.user?.uid || '',
+              emailVerified: true,
+            };
+            await persistVerifiedSession(sess);
+            console.log('[ConsumerLogin] ✅ Fallback persistence completed');
+          } catch {
+            console.log('[ConsumerLogin] ❌ Fallback persistence failed');
+            // Ignore local persistence failures.
+          }
         }
 
         // Fetch and cache user data for offline access
@@ -286,20 +296,11 @@ export default function ConsumerLogin() {
               </TouchableOpacity>
             </View>
 
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
             {/* Sign Up Link */}
-            <View style={styles.signupContainer}>
+            <TouchableOpacity onPress={handleSignUp} style={styles.signupContainer}>
               <Text style={styles.signupText}>Don&apos;t have an account? </Text>
-              <TouchableOpacity onPress={handleSignUp}>
-                <Text style={styles.signupLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.signupLink}>Sign Up</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -456,25 +457,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginLeft: 10,
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e9ecef',
-  },
-  dividerText: {
-    fontSize: 12,
-    color: '#999',
-    marginHorizontal: 12,
-  },
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 20,
   },
   signupText: {
     fontSize: 14,

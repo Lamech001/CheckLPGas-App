@@ -50,7 +50,10 @@ export default function RoleSelectScreen() {
               styles.roleOption,
               selectedRole === 'consumer' && styles.roleOptionSelectedConsumer
             ]}
-            onPress={() => setSelectedRole('consumer')}
+            onPress={() => {
+              setSelectedRole('consumer');
+              navigateToSignup();
+            }}
           >
             <View style={styles.roleContent}>
               <View style={styles.iconContainer}>
@@ -84,7 +87,9 @@ export default function RoleSelectScreen() {
               styles.roleOption,
               selectedRole === 'supplier' && styles.roleOptionSelectedSupplier
             ]}
-            onPress={() => setSelectedRole('supplier')}
+            onPress={() => {
+              setSelectedRole('supplier');
+            }}
           >
             <View style={styles.roleContent}>
               <View style={styles.iconContainer}>
@@ -108,18 +113,6 @@ export default function RoleSelectScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtonsContainer}>
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[
-              styles.loginButton,
-              selectedRole === 'supplier' && styles.supplierLoginButton
-            ]}
-            onPress={navigateToLogin}
-          >
-            <FontAwesome5 name="sign-in-alt" size={18} color="#fff" style={styles.buttonIcon} />
-            <Text style={styles.loginButtonText}>Log In</Text>
-          </TouchableOpacity>
-
           {/* Sign Up Button */}
           <TouchableOpacity
             style={[
@@ -128,8 +121,20 @@ export default function RoleSelectScreen() {
             ]}
             onPress={navigateToSignup}
           >
-            <FontAwesome5 name="user-plus" size={16} color={selectedRole === 'supplier' ? '#FF9800' : '#4CAF50'} style={styles.buttonIcon} />
-            <Text style={[styles.signUpButtonText, selectedRole === 'supplier' && styles.supplierSignUpButtonText]}>Sign Up</Text>
+            <FontAwesome5 name="user-plus" size={16} color="#fff" style={styles.buttonIcon} />
+            <Text style={styles.signUpButtonText}>Sign Up</Text>
+          </TouchableOpacity>
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[
+              styles.loginButton,
+              selectedRole === 'supplier' && styles.supplierLoginButton
+            ]}
+            onPress={navigateToLogin}
+          >
+            <FontAwesome5 name="sign-in-alt" size={18} color={selectedRole === 'supplier' ? '#FF9800' : '#4CAF50'} style={styles.buttonIcon} />
+            <Text style={[styles.loginButtonText, selectedRole === 'supplier' && styles.supplierLoginButtonText]}>Log In</Text>
           </TouchableOpacity>
         </View>
 
@@ -266,18 +271,23 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 56,
     borderRadius: 8,
-    backgroundColor: '#4CAF50',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
   },
   supplierLoginButton: {
-    backgroundColor: '#FF9800',
+    borderColor: '#FF9800',
   },
   loginButtonText: {
-    color: '#fff',
+    color: '#4CAF50',
     fontSize: 18,
     fontWeight: '600',
+  },
+  supplierLoginButtonText: {
+    color: '#FF9800',
   },
   buttonIcon: {
     marginRight: 10,
@@ -286,23 +296,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 56,
     borderRadius: 8,
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#4CAF50',
+    backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
   },
   supplierSignUpButton: {
-    borderColor: '#FF9800',
+    backgroundColor: '#FF9800',
   },
   signUpButtonText: {
-    color: '#4CAF50',
+    color: '#fff',
     fontSize: 18,
     fontWeight: '600',
-  },
-  supplierSignUpButtonText: {
-    color: '#FF9800',
   },
   switchContainer: {
     flexDirection: 'row',

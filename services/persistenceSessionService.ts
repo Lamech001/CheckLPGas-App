@@ -1,4 +1,4 @@
-import { CACHE_TTL, setCache, getCache, CACHE_KEYS } from '@/services/enhancedCache';
+import { CACHE_KEYS, getCache, setCache } from '@/services/enhancedCache';
 
 export type PersistentRole = 'consumer' | 'supplier';
 

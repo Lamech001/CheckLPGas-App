@@ -4,7 +4,7 @@
  */
 
 import { auth, enableFirestoreNetwork } from '@/config/firebase';
-import { CACHE_KEYS, CACHE_TTL, getCache, setCache } from '@/services/cache';
+import { CACHE_KEYS, CACHE_TTL, getCache, setCache } from '@/services/enhancedCache';
 import NetInfo from '@react-native-community/netinfo';
 import { getIdToken, onAuthStateChanged, User } from 'firebase/auth';
 import { AppState, AppStateStatus, type NativeEventSubscription } from 'react-native';
@@ -14,10 +14,12 @@ interface SessionState {
   lastTokenRefresh: number;
   sessionStartTime: number;
   isSessionValid: boolean;
+  uid: string;
+  role: 'consumer' | 'supplier';
 }
 
-const TOKEN_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
-const SESSION_TIMEOUT = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TOKEN_REFRESH_INTERVAL = 25 * 60 * 1000; // 25 minutes - more aggressive
+const SESSION_TIMEOUT = 30 * 24 * 60 * 60 * 1000; // 30 days - extended for better persistence
 
 class SessionManager {
   private static instance: SessionManager;
@@ -76,12 +78,25 @@ class SessionManager {
       // Silent fail - Firestore handles this internally
     }
 
-    // Cache session start
+    // Get user role for session tracking
+    let userRole: 'consumer' | 'supplier' = 'consumer';
+    try {
+      const { getUserRole } = await import('@/services/authService');
+      const roleResult = await getUserRole(user.uid);
+      userRole = roleResult.role || 'consumer';
+    } catch {
+      // Default to consumer on error
+      userRole = 'consumer';
+    }
+
+    // Cache session start with role and uid
     const sessionState: SessionState = {
       isConnected: true,
       lastTokenRefresh: Date.now(),
       sessionStartTime: Date.now(),
       isSessionValid: true,
+      uid: user.uid,
+      role: userRole,
     };
     await this.saveSessionState(sessionState);
   }
@@ -221,6 +236,28 @@ class SessionManager {
 
     // Token expired or not cached, refresh
     return this.refreshToken(true);
+  }
+
+  async getSessionInfo(): Promise<{ uid: string; role: 'consumer' | 'supplier' } | null> {
+    const state = await this.loadSessionState();
+    if (!state || !state.isSessionValid) return null;
+    return { uid: state.uid, role: state.role };
+  }
+
+  async restoreSession(): Promise<boolean> {
+    const state = await this.loadSessionState();
+    if (!state || !state.isSessionValid) return false;
+
+    // Check if session is still within timeout
+    const sessionAge = Date.now() - state.sessionStartTime;
+    if (sessionAge > SESSION_TIMEOUT) {
+      this.clearSessionState();
+      return false;
+    }
+
+    // Session is valid, attempt to restore Firebase auth
+    // Firebase auth persistence should handle this automatically
+    return true;
   }
 
   cleanup(): void {

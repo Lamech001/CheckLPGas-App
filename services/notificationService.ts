@@ -12,6 +12,7 @@ import { Platform } from "react-native";
 // "Default FirebaseApp is not initialized..." if FirebaseApp.initializeApp(...) hasn't run yet.
 
 // @ts-ignore (kept for potential future use)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let messaging: any = null;
 
 // Configure notification behavior

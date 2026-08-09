@@ -9,13 +9,16 @@ import { onIdTokenChanged, User } from 'firebase/auth';
  * This service ensures seamless authentication without user intervention.
  */
 
-// Token refresh configuration
-const TOKEN_REFRESH_THRESHOLD_MS = 50 * 60 * 1000; // Refresh 50 minutes before expiration (tokens last 1 hour)
-const TOKEN_CHECK_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
+// Token refresh configuration - more aggressive to prevent any expiration
+const TOKEN_REFRESH_THRESHOLD_MS = 45 * 60 * 1000; // Refresh 45 minutes before expiration (tokens last 1 hour)
+const TOKEN_CHECK_INTERVAL_MS = 2 * 60 * 1000; // Check every 2 minutes for better reliability
+const FORCE_REFRESH_INTERVAL_MS = 25 * 60 * 1000; // Force refresh every 25 minutes regardless
 
 let tokenRefreshListener: (() => void) | null = null;
 let tokenCheckInterval: NodeJS.Timeout | null = null;
+let forceRefreshInterval: NodeJS.Timeout | null = null;
 let isInitialized = false;
+let lastSuccessfulRefresh: number = 0;
 
 /**
  * Initialize automatic token refresh
@@ -33,6 +36,7 @@ export const initializeTokenRefresh = (): void => {
   tokenRefreshListener = onIdTokenChanged(auth, (user: User | null) => {
     if (user) {
       console.log('[TokenRefresh] Token refreshed for user:', user.uid);
+      lastSuccessfulRefresh = Date.now();
       
       // Token has been refreshed, you can perform additional actions here if needed
       // For example, update API headers, notify UI, etc.
@@ -54,12 +58,28 @@ export const initializeTokenRefresh = (): void => {
         // Firebase will only actually refresh if the token is close to expiration
         await user.getIdToken(true);
         console.log('[TokenRefresh] Periodic token check completed');
+        lastSuccessfulRefresh = Date.now();
       } catch (error) {
         console.error('[TokenRefresh] Periodic token check failed:', error);
         // Don't throw - let Firebase handle retries
       }
     }
   }, TOKEN_CHECK_INTERVAL_MS);
+
+  // Set up aggressive force refresh interval to prevent any expiration
+  forceRefreshInterval = setInterval(async () => {
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        // Force refresh regardless of token age
+        await user.getIdToken(true);
+        console.log('[TokenRefresh] Aggressive force refresh completed');
+        lastSuccessfulRefresh = Date.now();
+      } catch (error) {
+        console.error('[TokenRefresh] Aggressive force refresh failed:', error);
+      }
+    }
+  }, FORCE_REFRESH_INTERVAL_MS);
 
   isInitialized = true;
   console.log('[TokenRefresh] Token refresh service initialized');
@@ -82,7 +102,13 @@ export const stopTokenRefresh = (): void => {
     tokenCheckInterval = null;
   }
 
+  if (forceRefreshInterval) {
+    clearInterval(forceRefreshInterval);
+    forceRefreshInterval = null;
+  }
+
   isInitialized = false;
+  lastSuccessfulRefresh = 0;
 };
 
 /**
@@ -99,6 +125,7 @@ export const forceTokenRefresh = async (): Promise<string | null> => {
   try {
     const token = await user.getIdToken(true);
     console.log('[TokenRefresh] Token force-refreshed successfully');
+    lastSuccessfulRefresh = Date.now();
     return token;
   } catch (error) {
     console.error('[TokenRefresh] Force token refresh failed:', error);
@@ -162,4 +189,24 @@ export const needsTokenRefresh = async (): Promise<boolean> => {
   const timeUntilExpiration = expirationTime - now;
   
   return timeUntilExpiration < TOKEN_REFRESH_THRESHOLD_MS;
+};
+
+/**
+ * Get time since last successful refresh
+ * Useful for monitoring token refresh health
+ */
+export const getTimeSinceLastRefresh = (): number => {
+  if (lastSuccessfulRefresh === 0) return 0;
+  return Date.now() - lastSuccessfulRefresh;
+};
+
+/**
+ * Check if token refresh service is healthy
+ * Returns true if refresh happened recently
+ */
+export const isTokenRefreshHealthy = (): boolean => {
+  if (lastSuccessfulRefresh === 0) return false;
+  const timeSinceRefresh = Date.now() - lastSuccessfulRefresh;
+  // Consider healthy if refreshed within 30 minutes
+  return timeSinceRefresh < 30 * 60 * 1000;
 };

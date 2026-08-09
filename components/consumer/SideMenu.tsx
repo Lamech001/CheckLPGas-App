@@ -5,14 +5,14 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { memo, useState } from "react";
 import {
-  Alert,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { ConsumerProfile } from "./ConsumerProfile";
 import { SettingsPanel } from "./SettingsPanel";
@@ -93,17 +93,16 @@ export const SideMenu: React.FC<SideMenuProps> = memo(function SideMenu({
       icon: "user",
       label: "My Profile",
       onPress: () => {
+        setProfileVisible(true);
         onClose();
-        // Delay opening profile to let SideMenu close first
-        setTimeout(() => setProfileVisible(true), 300);
       },
     },
     {
       icon: "cog",
       label: "Settings",
       onPress: () => {
+        setSettingsVisible(true);
         onClose();
-        setTimeout(() => setSettingsVisible(true), 300);
       },
     },
     {

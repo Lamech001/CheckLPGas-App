@@ -2,16 +2,16 @@ import { auth, db, enableFirestoreNetwork } from "@/config/firebase";
 import { AppColors, AppSizes } from "@/constants/appTheme";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { doc, getDoc } from "firebase/firestore";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 interface ConsumerProfileProps {
@@ -25,15 +25,45 @@ interface UserProfile {
   phoneNumber: string;
   location: string;
   role: string;
-  createdAt?: string;
+  createdAt?: string | any;
 }
 
 const { height } = Dimensions.get("window");
 
+// Helper function to convert Firebase Timestamp or any object to string
+const formatValue = (value: any): string => {
+  if (value === null || value === undefined) return "N/A";
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value.toString();
+  
+  // Handle Firebase Timestamp objects
+  if (value && typeof value === "object") {
+    // Check if it's a Firebase Timestamp (has toDate method)
+    if (typeof value.toDate === "function") {
+      try {
+        return value.toDate().toLocaleDateString();
+      } catch {
+        return "N/A";
+      }
+    }
+    // Check if it has seconds/nanoseconds (raw Timestamp)
+    if (value.seconds !== undefined && value.nanoseconds !== undefined) {
+      try {
+        const date = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
+        return date.toLocaleDateString();
+      } catch {
+        return "N/A";
+      }
+    }
+  }
+  
+  return "N/A";
+};
+
 interface ProfileItemProps {
   icon: string;
   label: string;
-  value: string | undefined | null;
+  value: string | undefined | null | any;
 }
 
 const ProfileItem: React.FC<ProfileItemProps> = ({ icon, label, value }) => (
@@ -43,7 +73,7 @@ const ProfileItem: React.FC<ProfileItemProps> = ({ icon, label, value }) => (
     </View>
     <View style={styles.textContainer}>
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value || "N/A"}</Text>
+      <Text style={styles.value}>{formatValue(value)}</Text>
     </View>
   </View>
 );
@@ -59,6 +89,7 @@ export const ConsumerProfile: React.FC<ConsumerProfileProps> = ({
   const loadUserProfile = async () => {
     setLoading(true);
     setError(null);
+    
     try {
       const user = auth.currentUser;
       if (!user) {
@@ -67,52 +98,94 @@ export const ConsumerProfile: React.FC<ConsumerProfileProps> = ({
         return;
       }
 
-      // Try to enable network if offline (Firestore offline mode)
+      // Step 1: Try to load from cache first for instant display
       try {
-        await enableFirestoreNetwork();
+        const { getCachedUserProfile } = await import('@/services/cacheService');
+        const cachedProfile = await getCachedUserProfile<UserProfile>();
+        
+        if (cachedProfile) {
+          // Normalize cached profile to ensure dates are strings
+          const normalizedProfile: UserProfile = {
+            ...cachedProfile,
+            createdAt: formatValue(cachedProfile.createdAt),
+          };
+          setProfile(normalizedProfile);
+          setLoading(false); // Show cached data immediately
+        }
       } catch {
-        // Ignore network enable errors, proceed anyway
+        // Ignore cache errors, proceed to fetch from Firestore
       }
 
-      // Get user data from Firestore
-      const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
+      // Step 2: Fetch fresh data from Firestore in background
+      try {
+        // Try to enable network if offline (Firestore offline mode)
+        try {
+          await enableFirestoreNetwork();
+        } catch {
+          // Ignore network enable errors, proceed anyway
+        }
 
-      if (userDoc.exists()) {
-        const data = userDoc.data() as any;
-        setProfile({
-          fullName: data.displayName || user.displayName || "N/A",
-          email: user.email || "N/A",
-          phoneNumber: data.phoneNumber || "N/A",
-          location: data.location || "N/A",
-          role: data.role || "consumer",
-          createdAt: (() => {
-            try {
-              const d = data?.createdAt;
-              // Firestore Timestamp has toDate(); handle strings/undefined safely
-              if (d && typeof d.toDate === "function")
-                return d.toDate().toLocaleDateString();
-              if (typeof d === "string") return d;
-              return "N/A";
-            } catch {
-              return "N/A";
-            }
-          })(),
-        });
-      } else {
-        // Fallback to Auth data if Firestore doc doesn't exist
-        setProfile({
-          fullName: user.displayName || "N/A",
-          email: user.email || "N/A",
-          phoneNumber: user.phoneNumber || "N/A",
-          location: "N/A",
-          role: "consumer",
-          createdAt: "N/A",
-        });
+        // Get user data from Firestore
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const data = userDoc.data() as any;
+          const freshProfile: UserProfile = {
+            fullName: data.displayName || user.displayName || "N/A",
+            email: user.email || "N/A",
+            phoneNumber: data.phoneNumber || "N/A",
+            location: data.location || "N/A",
+            role: data.role || "consumer",
+            createdAt: formatValue(data?.createdAt),
+          };
+          
+          setProfile(freshProfile);
+          
+          // Update cache with fresh data
+          try {
+            const { cacheUserProfile } = await import('@/services/cacheService');
+            await cacheUserProfile(freshProfile);
+          } catch {
+            // Ignore cache update errors
+          }
+        } else {
+          // Fallback to Auth data if Firestore doc doesn't exist
+          const fallbackProfile: UserProfile = {
+            fullName: user.displayName || "N/A",
+            email: user.email || "N/A",
+            phoneNumber: user.phoneNumber || "N/A",
+            location: "N/A",
+            role: "consumer",
+            createdAt: "N/A",
+          };
+          
+          setProfile(fallbackProfile);
+          
+          // Cache the fallback profile
+          try {
+            const { cacheUserProfile } = await import('@/services/cacheService');
+            await cacheUserProfile(fallbackProfile);
+          } catch {
+            // Ignore cache update errors
+          }
+        }
+      } catch (err: any) {
+        // If we have cached data, don't show error - just keep showing cached data
+        const { getCachedUserProfile } = await import('@/services/cacheService');
+        const hasCached = await getCachedUserProfile<UserProfile>();
+        
+        if (!hasCached) {
+          if (err.message?.includes("offline") || err.code?.includes("offline")) {
+            setError(
+              "You appear to be offline. Please check your internet connection and try again.",
+            );
+          } else {
+            setError("Failed to load profile. Please try again.");
+          }
+        }
       }
     } catch (err: any) {
-      // Error handled silently - user sees friendly message in UI
-      // No console.error to suppress uncaught error noise
       if (err.message?.includes("offline") || err.code?.includes("offline")) {
         setError(
           "You appear to be offline. Please check your internet connection and try again.",
@@ -127,6 +200,7 @@ export const ConsumerProfile: React.FC<ConsumerProfileProps> = ({
 
   useEffect(() => {
     if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadUserProfile();
     }
   }, [visible]);
@@ -394,7 +468,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
-function useEffect(arg0: () => void, arg1: boolean[]) {
-  throw new Error("Function not implemented.");
-}

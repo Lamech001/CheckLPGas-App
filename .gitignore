@@ -71,7 +71,6 @@ coverage/
 
 # Credentials
 credentials/
-google-services*.json
 google-services (5).json
 
 # Bundle tool

@@ -76,6 +76,67 @@ export function CacheProvider({
   
   const isMounted = useRef(true);
 
+  // Refresh cache statistics
+  const refreshStats = useCallback(async () => {
+    try {
+      const stats = await getCacheStats();
+      const imageSize = await getImageCacheSize();
+
+      if (isMounted.current) {
+        setMemoryEntries(stats.memoryEntries);
+        setStorageEntries(stats.storageEntries);
+        setTotalSize(stats.totalSize);
+        setImageCacheSize(imageSize);
+      }
+    } catch (error) {
+      console.error('Failed to refresh cache stats:', error);
+    }
+  }, []);
+
+  // Warm cache with commonly used data
+  const warmCacheInternal = useCallback(async () => {
+    if (isWarming || WARM_LOCATIONS.length === 0) return;
+
+    setIsWarming(true);
+
+    try {
+      // Warm supplier cache
+      await warmSupplierCache(WARM_LOCATIONS);
+
+      // Prefetch app config
+      await prefetchSingle(
+        CACHE_KEYS.APP.CONFIG,
+        async () => ({
+          version: '1.0.0',
+          features: {},
+          lastUpdated: Date.now(),
+        }),
+        { ttl: CACHE_TTL.APP.CONFIG, version: '1.0', persistent: true }
+      );
+
+      await refreshStats();
+    } catch (error) {
+      console.error('Cache warming error:', error);
+    } finally {
+      if (isMounted.current) {
+        setIsWarming(false);
+      }
+    }
+  }, [isWarming, refreshStats]);
+
+  // Perform cache maintenance
+  const performMaintenanceInternal = useCallback(async () => {
+    try {
+      // Evict old images if needed
+      await evictOldImages();
+      
+      // Refresh stats
+      await refreshStats();
+    } catch (error) {
+      console.error('Cache maintenance error:', error);
+    }
+  }, [refreshStats]);
+
   // Initialize cache on mount
   useEffect(() => {
     isMounted.current = true;
@@ -94,12 +155,12 @@ export function CacheProvider({
 
         // Warm cache if enabled
         if (warmOnMount) {
-          warmCache();
+          warmCacheInternal();
         }
 
         // Set up periodic cache maintenance
         const maintenanceInterval = setInterval(() => {
-          performMaintenance();
+          performMaintenanceInternal();
         }, 60 * 60 * 1000); // Every hour
 
         return () => {
@@ -118,24 +179,8 @@ export function CacheProvider({
     return () => {
       isMounted.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warmOnMount]);
-
-  // Refresh cache statistics
-  const refreshStats = useCallback(async () => {
-    try {
-      const stats = await getCacheStats();
-      const imageSize = await getImageCacheSize();
-
-      if (isMounted.current) {
-        setMemoryEntries(stats.memoryEntries);
-        setStorageEntries(stats.storageEntries);
-        setTotalSize(stats.totalSize);
-        setImageCacheSize(imageSize);
-      }
-    } catch (error) {
-      console.error('Failed to refresh cache stats:', error);
-    }
-  }, []);
 
   // Invalidate cache by pattern
   const invalidateCache = useCallback(async (pattern?: string) => {
@@ -190,50 +235,6 @@ export function CacheProvider({
     }
   }, [refreshStats]);
 
-  // Warm cache with commonly used data
-  const warmCache = useCallback(async () => {
-    if (isWarming || WARM_LOCATIONS.length === 0) return;
-
-    setIsWarming(true);
-
-    try {
-      // Warm supplier cache
-      await warmSupplierCache(WARM_LOCATIONS);
-
-      // Prefetch app config
-      await prefetchSingle(
-        CACHE_KEYS.APP.CONFIG,
-        async () => ({
-          version: '1.0.0',
-          features: {},
-          lastUpdated: Date.now(),
-        }),
-        { ttl: CACHE_TTL.APP.CONFIG, version: '1.0', persistent: true }
-      );
-
-      await refreshStats();
-    } catch (error) {
-      console.error('Cache warming error:', error);
-    } finally {
-      if (isMounted.current) {
-        setIsWarming(false);
-      }
-    }
-  }, [isWarming, refreshStats]);
-
-  // Perform cache maintenance
-  const performMaintenance = async () => {
-    try {
-      // Evict old images if needed
-      await evictOldImages();
-      
-      // Refresh stats
-      await refreshStats();
-    } catch (error) {
-      console.error('Cache maintenance error:', error);
-    }
-  };
-
   const value: CacheContextType = {
     isInitialized,
     isWarming,
@@ -246,7 +247,7 @@ export function CacheProvider({
     refreshStats,
     prefetchSuppliers,
     prefetchImage,
-    warmCache,
+    warmCache: warmCacheInternal,
     isCacheStale,
   };
 

@@ -11,10 +11,10 @@ import { SupplierMap } from "@/components/consumer/SupplierMap";
 import { auth } from "@/config/firebase";
 
 import {
-  AppColors,
-  AppConstants,
-  AppShadows,
-  AppSizes,
+    AppColors,
+    AppConstants,
+    AppShadows,
+    AppSizes,
 } from "@/constants/appTheme";
 
 import { useSuppliers } from "@/hooks/useSuppliers";
@@ -22,16 +22,21 @@ import { useSuppliers } from "@/hooks/useSuppliers";
 import { getUserRole } from "@/services/authService";
 
 import {
-  cacheUserLocation,
-  getCachedUserLocation,
+    cacheUserLocation,
+    getCachedUserLocation,
 } from "@/services/cacheService";
+
+import {
+    getConsumerDashboardState,
+    saveConsumerDashboardState,
+} from "@/services/dashboardStateService";
 
 import { getCurrentLocation } from "@/services/locationService";
 
 import {
-  notificationListeners,
-  requestNotificationPermissions,
-  sendLocalNotification
+    notificationListeners,
+    requestNotificationPermissions,
+    sendLocalNotification
 } from "@/services/notificationService";
 
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -42,13 +47,13 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const DEFAULT_RADIUS_KM = AppConstants.defaultRadiusKm;
@@ -70,6 +75,8 @@ export default function ConsumerHomeScreen() {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
 
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  const [selectedSize, setSelectedSize] = useState<'all' | 6 | 13 | 19>('all');
 
   // Use new cached suppliers hook with built-in real-time updates and offline-first
 
@@ -125,6 +132,20 @@ export default function ConsumerHomeScreen() {
       const user = auth.currentUser;
       if (user?.displayName && !cancelled) {
         setUserName(user.displayName.split(" ")[0] || "");
+      }
+    };
+
+    // 1.5. Load persisted dashboard state
+    const loadDashboardState = async () => {
+      try {
+        const dashboardState = await getConsumerDashboardState();
+        if (cancelled) return;
+
+        if (dashboardState.selectedSize) {
+          setSelectedSize(dashboardState.selectedSize);
+        }
+      } catch {
+        // Ignore errors, use defaults
       }
     };
 
@@ -210,6 +231,7 @@ export default function ConsumerHomeScreen() {
     }, 200);
 
     loadProfile();
+    loadDashboardState();
 
     return () => {
       cancelled = true;
@@ -279,7 +301,13 @@ export default function ConsumerHomeScreen() {
 
   const handleRefresh = useCallback(() => {
     refreshSuppliers();
+    saveConsumerDashboardState({ lastRefreshTime: Date.now() });
   }, [refreshSuppliers]);
+
+  // Save selected size when changed
+  useEffect(() => {
+    saveConsumerDashboardState({ selectedSize });
+  }, [selectedSize]);
 
   // Show UI immediately with cached data, refresh in background
 
@@ -339,6 +367,8 @@ export default function ConsumerHomeScreen() {
 
   return (
     <View style={styles.container}>
+      <AppStatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+
       {/* Minimal header with just buttons */}
 
       <View style={styles.minimalHeader}>

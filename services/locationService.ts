@@ -49,7 +49,7 @@ export const getCurrentLocation = async (): Promise<LocationData | null> => {
       if (address) {
         formattedAddress = `${address.city || address.subregion || ''}, ${address.region || address.country || 'Kenya'}`;
       }
-    } catch (geoError) {
+    } catch {
       // Geocoding failed - use coordinates as fallback
       formattedAddress = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
     }
