@@ -9,13 +9,11 @@ import { onIdTokenChanged, User } from 'firebase/auth';
  * This service ensures seamless authentication without user intervention.
  */
 
-// Token refresh configuration - more aggressive to prevent any expiration
+// Token refresh configuration - optimized to reduce Firebase costs
 const TOKEN_REFRESH_THRESHOLD_MS = 45 * 60 * 1000; // Refresh 45 minutes before expiration (tokens last 1 hour)
-const TOKEN_CHECK_INTERVAL_MS = 2 * 60 * 1000; // Check every 2 minutes for better reliability
 const FORCE_REFRESH_INTERVAL_MS = 25 * 60 * 1000; // Force refresh every 25 minutes regardless
 
 let tokenRefreshListener: (() => void) | null = null;
-let tokenCheckInterval: NodeJS.Timeout | null = null;
 let forceRefreshInterval: NodeJS.Timeout | null = null;
 let isInitialized = false;
 let lastSuccessfulRefresh: number = 0;
@@ -49,34 +47,17 @@ export const initializeTokenRefresh = (): void => {
     // Don't stop refresh on transient errors - Firebase will retry
   });
 
-  // Set up periodic token check (backup mechanism)
-  tokenCheckInterval = setInterval(async () => {
-    const user = auth.currentUser;
-    if (user) {
-      try {
-        // Force token refresh if needed
-        // Firebase will only actually refresh if the token is close to expiration
-        await user.getIdToken(true);
-        console.log('[TokenRefresh] Periodic token check completed');
-        lastSuccessfulRefresh = Date.now();
-      } catch (error) {
-        console.error('[TokenRefresh] Periodic token check failed:', error);
-        // Don't throw - let Firebase handle retries
-      }
-    }
-  }, TOKEN_CHECK_INTERVAL_MS);
-
-  // Set up aggressive force refresh interval to prevent any expiration
+  // Set up force refresh interval to prevent token expiration
   forceRefreshInterval = setInterval(async () => {
     const user = auth.currentUser;
     if (user) {
       try {
         // Force refresh regardless of token age
         await user.getIdToken(true);
-        console.log('[TokenRefresh] Aggressive force refresh completed');
+        console.log('[TokenRefresh] Force refresh completed');
         lastSuccessfulRefresh = Date.now();
       } catch (error) {
-        console.error('[TokenRefresh] Aggressive force refresh failed:', error);
+        console.error('[TokenRefresh] Force refresh failed:', error);
       }
     }
   }, FORCE_REFRESH_INTERVAL_MS);
@@ -95,11 +76,6 @@ export const stopTokenRefresh = (): void => {
   if (tokenRefreshListener) {
     tokenRefreshListener();
     tokenRefreshListener = null;
-  }
-
-  if (tokenCheckInterval) {
-    clearInterval(tokenCheckInterval);
-    tokenCheckInterval = null;
   }
 
   if (forceRefreshInterval) {

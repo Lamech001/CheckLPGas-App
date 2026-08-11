@@ -1,11 +1,11 @@
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Animated,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 
 interface SplashScreenProps {

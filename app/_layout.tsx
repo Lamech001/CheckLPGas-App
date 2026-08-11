@@ -45,6 +45,14 @@ function AppContent() {
   useEffect(() => {
     sessionManager.initialize();
     initializeTokenRefresh();
+    
+    // Initialize auth persistence with dynamic import to avoid circular dependency
+    import('@/services/authPersistenceService').then(({ initializeAuthPersistence }) => {
+      initializeAuthPersistence();
+    }).catch(err => {
+      console.warn('[RootLayout] Failed to initialize auth persistence:', err);
+    });
+    
     return () => {
       sessionManager.cleanup();
       stopTokenRefresh();
@@ -55,11 +63,14 @@ function AppContent() {
   useEffect(() => {
     const initNotifications = async () => {
       try {
+        // Wait a bit to ensure Firebase is fully initialized
+        await new Promise(resolve => setTimeout(resolve, 100));
         await setupNotifications();
       } catch (error: any) {
         // Suppress Firebase initialization errors that occur during hot reload
         // These are non-critical and notifications will work on proper app restart
-        if (error?.message?.includes("Default FirebaseApp is not initialized")) {
+        if (error?.message?.includes("Default FirebaseApp is not initialized") || 
+            error?.message?.includes("Firebase Messaging")) {
           console.warn("[RootLayout] Firebase not ready for notifications (hot reload - will work on restart)");
         } else {
           console.error("[RootLayout] Failed to setup notifications:", error);
@@ -83,18 +94,25 @@ function AppContent() {
         if (cancelled) return;
 
         if (session?.role && session?.emailVerified && session?.uid) {
-          // Session marker exists - try to restore Firebase auth session
-          const canRestore = await sessionManager.restoreSession();
+          // Session marker exists - Firebase auth will automatically restore
+          // Wait a moment for Firebase auth to complete restoration
+          await new Promise(resolve => setTimeout(resolve, 500));
           
-          if (canRestore) {
-            // Session is valid, navigate to appropriate dashboard
+          // Check if Firebase auth restored successfully
+          const { auth } = await import('@/config/firebase');
+          const currentUser = auth.currentUser;
+          
+          if (currentUser && currentUser.uid === session.uid) {
+            // Firebase auth restored successfully, navigate to appropriate dashboard
+            console.log('[RootLayout] ✅ Session restored for user:', currentUser.uid, 'role:', session.role);
             if (session.role === "consumer") {
               router.replace("/(tabs)");
             } else if (session.role === "supplier") {
               router.replace("/supplier/dashboard");
             }
           } else {
-            // Session expired, clear it and let normal auth flow handle it
+            // Firebase auth failed to restore, clear session marker
+            console.log('[RootLayout] ❌ Firebase auth restoration failed, clearing session');
             const { clearPersistentSession } = await import('@/services/persistenceSessionService');
             await clearPersistentSession();
           }

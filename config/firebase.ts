@@ -69,14 +69,15 @@ let auth: Auth;
 
 if (isFirstLoad) {
   // First app load - initialize with AsyncStorage persistence
-  // This ensures users stay logged in across app restarts
+  // This ensures users stay logged in across app restarts and even after months
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(ReactNativeAsyncStorage),
   });
   
-  // Configure auth settings for better persistence
-  // These settings help maintain sessions across app closures
+  // Configure auth settings for permanent persistence
+  // These settings help maintain sessions across app closures indefinitely
   auth.tenantId = null; // Clear any tenant-specific restrictions
+  auth.languageCode = 'en'; // Set default language
 } else {
   // Hot reload - auth already initialized with persistence
 

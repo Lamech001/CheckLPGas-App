@@ -19,7 +19,7 @@ interface SessionState {
 }
 
 const TOKEN_REFRESH_INTERVAL = 25 * 60 * 1000; // 25 minutes - more aggressive
-const SESSION_TIMEOUT = 30 * 24 * 60 * 60 * 1000; // 30 days - extended for better persistence
+const SESSION_TIMEOUT = Number.POSITIVE_INFINITY; // Permanent session - no timeout
 
 class SessionManager {
   private static instance: SessionManager;
@@ -248,15 +248,9 @@ class SessionManager {
     const state = await this.loadSessionState();
     if (!state || !state.isSessionValid) return false;
 
-    // Check if session is still within timeout
-    const sessionAge = Date.now() - state.sessionStartTime;
-    if (sessionAge > SESSION_TIMEOUT) {
-      this.clearSessionState();
-      return false;
-    }
-
     // Session is valid, attempt to restore Firebase auth
     // Firebase auth persistence should handle this automatically
+    // No timeout check - permanent session
     return true;
   }
 

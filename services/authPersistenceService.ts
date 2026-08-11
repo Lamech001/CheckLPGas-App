@@ -14,6 +14,7 @@ import { getPersistentSession, persistVerifiedSession } from './persistenceSessi
  * - Automatically syncs local session with Firebase Auth
  * - Prevents automatic logouts
  * - Ensures correct dashboard routing
+ * - Firebase Auth with AsyncStorage handles permanent sessions automatically
  */
 
 let authStateListener: (() => void) | null = null;
